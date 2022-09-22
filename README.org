@@ -13,9 +13,9 @@ There are three ways to install dependencies of this package.
 
 Here we provide instructions uisng the third method, follow these instructions to install MLForce
 
-1- clone MLforce from its repositiry
+1- clone MLforce from its repository
 #+begin_src bash
-  git clone git@gitlab.com:ADicksonLab/mlforce.git
+  git clone git@gitlab.com:ADicksonLab/mlforce_ft.git
 #+end_src
 
 2- You should use conda to make a new virtual environment using the ~environment.yml~
@@ -59,7 +59,7 @@ to ~on~ and if you want to build the OpenCL platform set the
   make PythonInstall
 #+end_src
 
-11- Add Libtorch libraray path to the environmental variable ~LD_LIBRARY_PATH~
+11- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~
 #+begin_src bash
 export LIBTORCH_LIBRARY_PATH="path/to/libtorch/lib"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBTORCH_LIBRARY_PATH"

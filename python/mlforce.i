@@ -26,10 +26,12 @@ public:
 				 std::vector<std::vector<double> > targetFeatures,
 				 const std::vector<int> particleIndices,
 				 const std::vector<double> signalForceWeights,
-				 double scale);
+				 double scale,
+				 int assignFreq);
 
 	const std::string& getFile() const;
 	const double getScale() const;
+	const int getAssignFreq() const;
 	const std::vector<std::vector<double>> getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;

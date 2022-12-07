@@ -80,6 +80,9 @@ private:
     std::vector<double> signalForceWeights;
     std::vector<std::vector<double>> targetFeatures;
     double scale;
+    int assignFreq;
+    int step_count;
+    vector<int> assignment;
     bool usePeriodic;
     OpenMM::OpenCLArray networkForces;
     cl::Kernel addForcesKernel;

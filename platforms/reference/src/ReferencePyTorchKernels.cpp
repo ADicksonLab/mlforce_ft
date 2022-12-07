@@ -137,6 +137,7 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	nnModule.eval();
 
 	scale = force.getScale();
+	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
 
@@ -159,6 +160,8 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	  boxVectorsTensor = torch::zeros(boxVectorsDims);
 	  boxVectorsTensor = boxVectorsTensor.to(torch::kFloat64);
 	}
+
+	step_count = 0;
 
 }
 
@@ -210,26 +213,30 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	// outputTensor : attributes (ANI AEVs)
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 
-	// concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
-	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
-	//std::cout<<ghFeaturesTensor <<"\n";
-
-	torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
-		- targetFeaturesTensor, 2, 2);
-
-
-	//convert it to a 2d vector
-	std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
-		numGhostParticles,
-	    static_cast<int>(targetFeaturesTensor.size(0)));
-
 	// call Hungarian algorithm to determine mapping (and loss)
-	vector<int> assignment;
-	assignment = hungAlg.Solve(distMatrix);
-	// Save the assignments in the context variables
-	for (std::size_t i=0; i<assignment.size(); i++) {
+	if (step_count % assignFreq == 0) {
+
+	  // concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
+	  torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
+
+	  torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
+											 - targetFeaturesTensor, 2, 2);
+
+	  //convert it to a 2d vector
+	  std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+																  numGhostParticles,
+																  static_cast<int>(targetFeaturesTensor.size(0)));
+
+	  assignment = hungAlg.Solve(distMatrix);
+
+	  // Save the assignments in the context variables
+	  for (std::size_t i=0; i<assignment.size(); i++) {
 		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+	  }
+
 	}
+
+	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();

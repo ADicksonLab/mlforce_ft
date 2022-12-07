@@ -44,13 +44,16 @@ PyTorchForce::PyTorchForce(const std::string& file,
 			   const std::vector<std::vector<double>> targetFeatures,
 			   const std::vector<int> particleIndices,
 			   const std::vector<double> signalForceWeights,
-			   const double scale) :
+			   const double scale,
+			   const int assignFreq) :
 
   file(file),
   targetFeatures(targetFeatures),
   particleIndices(particleIndices),
   signalForceWeights(signalForceWeights),
-  scale(scale), usePeriodic(false) {
+  scale(scale),
+  assignFreq(assignFreq),
+  usePeriodic(false) {
 }
 
 const string& PyTorchForce::getFile() const {
@@ -59,7 +62,9 @@ const string& PyTorchForce::getFile() const {
 const double PyTorchForce::getScale() const {
   return scale;
 }
-
+const int PyTorchForce::getAssignFreq() const {
+  return assignFreq;
+}
 
 const std::vector<std::vector<double>> PyTorchForce::getTargetFeatures() const{
   return targetFeatures;

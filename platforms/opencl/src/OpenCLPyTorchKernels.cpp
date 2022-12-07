@@ -99,6 +99,7 @@ void OpenCLCalcPyTorchForceKernel::initialize(const System& system, const PyTorc
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	scale = force.getScale();
+	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	signalForceWeights = force.getSignalForceWeights();
@@ -122,6 +123,7 @@ void OpenCLCalcPyTorchForceKernel::initialize(const System& system, const PyTorc
 	if (usePeriodic)
 		boxVectorsTensor = torch::empty({3, 3}, torch::kFloat64);
 
+	step_count = 0;
 	// Inititalize OpenCL objects.
 	int numParticles = system.getNumParticles();
 	map<string, string> defines;
@@ -201,27 +203,29 @@ double OpenCLCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeF
 	}
 
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
-	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
+	if (step_count % assignFreq == 0) {
+	  torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
-	torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
-		- targetFeaturesTensor, 2, 2);
+	  torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
+											 - targetFeaturesTensor, 2, 2);
 
-	//convert it to a 2d vector
-	if (!cl.getUseDoublePrecision())
+	  //convert it to a 2d vector
+	  if (!cl.getUseDoublePrecision())
 		distMatTensor=distMatTensor.to(torch::kFloat64);
 
-	std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
-		numGhostParticles,
-	    static_cast<int>(targetFeaturesTensor.size(0)));
+	  std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+																  numGhostParticles,
+																  static_cast<int>(targetFeaturesTensor.size(0)));
 
-	// call Hungarian algorithm to determine mapping (and loss)
-	 vector<int> assignment;
-	 assignment = hungAlg.Solve(distMatrix);
-	// Save the assignments in the context variables
-	for (std::size_t i=0; i<assignment.size(); i++) {
-		  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+	  // call Hungarian algorithm to determine mapping (and loss)
+	  assignment = hungAlg.Solve(distMatrix);
+	  // Save the assignments in the context variables
+	  for (std::size_t i=0; i<assignment.size(); i++) {
+		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+	  }
 	}
+	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();

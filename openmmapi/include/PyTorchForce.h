@@ -125,6 +125,7 @@ private:
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale;
+	int assignFreq;
 	bool usePeriodic;
 	std::vector<GlobalParameterInfo> globalParameters;
 };

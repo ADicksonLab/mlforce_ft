@@ -74,6 +74,10 @@ private:
 	bool usePeriodic;
   //Distances  distALg;
     HungarianAlgorithm hungAlg;
+    int step_count;
+    int assignFreq;
+    vector<int> assignment;
+  
 
 };
 

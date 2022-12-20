@@ -48,6 +48,7 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 	const PyTorchForce& force = *reinterpret_cast<const PyTorchForce*>(object);
 	node.setStringProperty("file", force.getFile());
 	node.setDoubleProperty("scale", force.getScale());
+	node.setIntProperty("assignFreq", force.getAssignFreq());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
 
@@ -107,7 +108,7 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 	 }
 
 	 PyTorchForce* force = new PyTorchForce(node.getStringProperty("file"),  targetfeatures,
-											indices, signalForceWeights, node.getDoubleProperty("scale"));
+											indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"));
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));
 

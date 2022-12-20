@@ -48,7 +48,8 @@ void testSerialization() {
 	std::vector<int> pindices={0, 1};
 	std::vector<double> weights={0.1, 0.2};
 	double scale = 10;
-	PyTorchForce force("graph.pb", features, pindices, weights, scale);
+	int assignFreq = 1;
+	PyTorchForce force("graph.pb", features, pindices, weights, scale, assignFreq);
 
 	// Serialize and then deserialize it.
 

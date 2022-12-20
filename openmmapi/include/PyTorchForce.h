@@ -53,12 +53,13 @@ public:
 	 * @param file   the path to the file containing the network
 	 */
   PyTorchForce(const std::string& file, std::vector<std::vector<double>> targetFeatures,
-			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale);
+			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, int assignFreq);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
 	const std::string& getFile() const;
 	const double getScale() const;
+	const int getAssignFreq() const;
 	const std::vector<std::vector<double>> getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
@@ -124,6 +125,7 @@ private:
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale;
+	int assignFreq;
 	bool usePeriodic;
 	std::vector<GlobalParameterInfo> globalParameters;
 };

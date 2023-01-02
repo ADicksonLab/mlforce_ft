@@ -51,6 +51,9 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 	node.setIntProperty("assignFreq", force.getAssignFreq());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
+	std::vector<vector<double>> params = force.getRestraintParams();
+	node.setDoubleProperty("rmaxDelta", params[0]);
+	node.setDoubleProperty("restraintK", params[1]);
 
 	std::vector<vector<double>> features = force.getTargetFeatures();
 	SerializationNode& targetfeaturesNode = node.createChildNode("TargetFeatures");
@@ -61,9 +64,17 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 		}
 	}
 
+	std::vector<vector<int>> rest_idxs = force.getRestraintIndices();
+	SerializationNode& restraintIndicesNode = node.createChildNode("RestraintIndices");
+	for (int i = 0; i < rest_idxs.size(); i++) {
+		SerializationNode&  idxsNode = restraintIndicesNode.createChildNode("restraint");
+		for (int j= 0; j < rest_idxs[0].size(); j++){
+			idxsNode.createChildNode("idxs").setIntProperty("value", rest_idxs[i][j]);
+		}
+	}
+
 	std::vector<int>  ParticleIndices = force.getParticleIndices();
 	SerializationNode& ParticleIndicesNode = node.createChildNode("ParticleIndices");
-
 	for (int i = 0; i < ParticleIndices.size(); i++) {
 		 ParticleIndicesNode.createChildNode("Index").setIntProperty("value", ParticleIndices[i]);
 	}
@@ -74,7 +85,11 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 	   signalForceWeightsNode.createChildNode("Weight").setDoubleProperty("value", signalForceWeights[i]);
 	}
 
-
+	std::vector<double>  rest_dists = force.getRestraintDistances();
+	SerializationNode&  restraintDistancesNode = node.createChildNode("RestraintDistances");
+	for (int i = 0; i < rest_dists.size(); i++) {
+	   restraintDistancesNode.createChildNode("Distance").setDoubleProperty("value", rest_dists[i]);
+	}
 }
 
 void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
@@ -86,29 +101,44 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 
 	std::vector<std::vector<double>> targetfeatures(numTargetParticles);
 	for (int i=0; i<numTargetParticles; i++){
-		 const SerializationNode& featureNode = targetfeaturesNode.getChildren()[i];
-		 for (auto &feature:featureNode.getChildren()){
-			 targetfeatures[i].push_back(feature.getDoubleProperty("value"));
-
-		 }
+		const SerializationNode& featureNode = targetfeaturesNode.getChildren()[i];
+		for (auto &feature:featureNode.getChildren()){
+			targetfeatures[i].push_back(feature.getDoubleProperty("value"));
+		}
 	}
 
+	const SerializationNode& restraintIndicesNode = node.getChildNode("RestraintIndices");
+	int	numRestraints = restraintIndicesNode.getChildren().size();
 
-	 std::vector<int> indices;
-	 const SerializationNode& partilceindicesNode = node.getChildNode("ParticleIndices");
-	 for (auto & index: partilceindicesNode.getChildren()) {
-	   indices.push_back(index.getIntProperty("value"));
-	 }
+	std::vector<std::vector<int>> restraint_idxs(numRestraints);
+	for (int i=0; i<numRestraints; i++){
+		const SerializationNode& idxsNode = restraintIndicesNode.getChildren()[i];
+		for (auto &idx:idxsNode.getChildren()){
+			restraint_idxs[i].push_back(idx.getIntProperty("value"));
+		}
+	}
 
-	 std::vector<double> signalForceWeights;
-	 const SerializationNode& signalForceWeightsNode = node.getChildNode("SignalForceWeights");
-	 for (auto &weight:signalForceWeightsNode.getChildren()){
+	std::vector<double> restraint_dists;
+	const SerializationNode& restraintDistancesNode = node.getChildNode("RestraintDistances");
+	for (auto &distance:restraintDistancesNode.getChildren()){
+		restraint_dists.push_back(distance.getDoubleProperty("value"));
+	}
 
-	   signalForceWeights.push_back(weight.getDoubleProperty("value"));
-	 }
+	std::vector<int> indices;
+	const SerializationNode& partilceindicesNode = node.getChildNode("ParticleIndices");
+	for (auto & index: partilceindicesNode.getChildren()) {
+		indices.push_back(index.getIntProperty("value"));
+	}
 
-	 PyTorchForce* force = new PyTorchForce(node.getStringProperty("file"),  targetfeatures,
-											indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"));
+	std::vector<double> signalForceWeights;
+	const SerializationNode& signalForceWeightsNode = node.getChildNode("SignalForceWeights");
+	for (auto &weight:signalForceWeightsNode.getChildren()){
+		signalForceWeights.push_back(weight.getDoubleProperty("value"));
+	}
+
+	PyTorchForce* force = new PyTorchForce(node.getStringProperty("file"),  targetfeatures,
+										indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"),
+										restraint_idxs, restraint_dists, node.getDoubleProperty("rmaxDelta"), node.getDoubleProperty("restraintK"));
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));
 

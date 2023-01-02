@@ -44,12 +44,16 @@ extern "C" void registerPyTorchSerializationProxies();
 
 void testSerialization() {
 	// Create a Force.
-  std::vector<vector<double>> features={{1.13, 1.5}, {5.0, 2.3}};
+  	std::vector<vector<double>> features={{1.13, 1.5}, {5.0, 2.3}};
 	std::vector<int> pindices={0, 1};
 	std::vector<double> weights={0.1, 0.2};
 	double scale = 10;
 	int assignFreq = 1;
-	PyTorchForce force("graph.pb", features, pindices, weights, scale, assignFreq);
+	std::vector<vector<int>> rest_idxs={{0,1}};
+	std::vector<double> rest_dists={0.1};
+	double rmaxDelta = 0.5;
+	double restraintK = 1000;
+	PyTorchForce force("graph.pb", features, pindices, weights, scale, assignFreq, rest_idxs, rest_dists, rmaxDelta, restraintK);
 
 	// Serialize and then deserialize it.
 
@@ -71,7 +75,11 @@ void testSerialization() {
 	ASSERT_EQUAL(force.getTargetFeatures()[0][1], force2.getTargetFeatures()[0][1]);
 	ASSERT_EQUAL(force.getTargetFeatures()[1][0], force2.getTargetFeatures()[1][0]);
 	ASSERT_EQUAL(force.getTargetFeatures()[1][1], force2.getTargetFeatures()[1][1]);
-
+	ASSERT_EQUAL(force.getRestraintIndices()[0][0], force2.getRestraintIndices()[0][0]);
+	ASSERT_EQUAL(force.getRestraintIndices()[0][1], force2.getRestraintIndices()[0][1]);
+	ASSERT_EQUAL(force.getRestraintDistances()[0], force2.getRestraintDistances()[0]);
+	ASSERT_EQUAL(force.getRestraintParams()[0], force2.getRestraintParams()[0])
+	ASSERT_EQUAL(force.getRestraintParams()[1], force2.getRestraintParams()[1])
 }
 
 int main() {

@@ -27,7 +27,12 @@ public:
 				 const std::vector<int> particleIndices,
 				 const std::vector<double> signalForceWeights,
 				 double scale,
-				 int assignFreq);
+				 int assignFreq,
+				 const std::vector<std::vector<int>> restraintIndices,
+				 const std::vector<double> restraintDistances,
+				 double rmaxDelta,
+				 double resraintK
+				 );
 
 	const std::string& getFile() const;
 	const double getScale() const;
@@ -43,7 +48,9 @@ public:
 	void setGlobalParameterName(int index, const std::string& name);
 	double getGlobalParameterDefaultValue(int index) const;
 	void setGlobalParameterDefaultValue(int index, double defaultValue);
-
+	const std::vector<std::vector<int>> getRestraintIndices() const;
+	const std::vector<double> getRestraintDistances() const;
+	const std::vector<double> getRestraintParams() const;
 };
 
 }

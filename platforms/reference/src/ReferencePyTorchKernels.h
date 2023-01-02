@@ -68,17 +68,22 @@ private:
 	torch::Tensor boxVectorsTensor;
 	torch::Tensor targetFeaturesTensor;
 	std::vector<int> particleIndices;
-  std::vector<double> signalForceWeights;
+    std::vector<double> signalForceWeights;
     std::vector<std::vector<double>> targetFeatures;
+    std::vector<std::vector<int>> targetRestraintIndices;
+    std::vector<double> targetRestraintDistances;
+	std::vector<double> targetRestraintParams;
+	std::vector<double> rmax, r0sq, restraint_b;
+	double restraint_k, rmax_delta;
 	double scale;
 	bool usePeriodic;
   //Distances  distALg;
     HungarianAlgorithm hungAlg;
     int step_count;
     int assignFreq;
-    vector<int> assignment;
-  
-
+	int numRestraints;
+    std::vector<int> assignment;
+	std::vector<int> reverse_assignment;
 };
 
 } // namespace PyTorchPlugin

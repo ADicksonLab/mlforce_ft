@@ -126,11 +126,12 @@ std::vector<std::vector<double>> tensorTo2DVec(double* ptr, int nRows, int nCols
  * @return std::vector<int>
  */
 std::vector<int> getReverseAssignment(std::vector<int> assignment) {
-	n = assignment.size();
+	int n = assignment.size();
 	std::vector<int> rev_assignment(n, -1);
 	for (int i=0; i<n; i++) {
 		if ((assignment[i] > 0) && (assignment[i] < n)) {
-		rev_assignment[assignment[i]] = i;
+		  rev_assignment[assignment[i]] = i;
+		}
 	}
 	return rev_assignment;
 }
@@ -164,9 +165,9 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	
 	numRestraints = targetRestraintDistances.size();
 	for (int i = 0; i < numRestraints; i++) {
-		r0sq[i] = targetRestraintDistances[i]**2;
+		r0sq[i] = targetRestraintDistances[i]*targetRestraintDistances[i];
 		rmax[i] = targetRestraintDistances[i] + rmax_delta;
-		restraint_b[i] = 0.5*restraint_k*(r0sq[i] - rmax[i]**2);
+		restraint_b[i] = 0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]);
 	}
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();
@@ -273,7 +274,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
 		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
 
-	double energy = energyTensor.item<double>()
+	double energy = energyTensor.item<double>();
 	// calculate force on the signals clips out singals from the end of features
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
 
@@ -296,14 +297,15 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	for (int i = 0; i < numRestraints; i++) {
 		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
-		std::vector<double> r = MDPositions[g1idx] - MDPositions[g2idx];
-		double rlensq = r[0]**2 + r[1]**2 + r[2]**2;
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
 		if (rlensq > r0sq[i]) {
 			double rlen = sqrt(rlensq);
 			if (rlen < rmax[i]) {
-				restraint_energy += 0.5*restraint_k*(rlen-targetRestraintDistances[i])**2;
+			    double dr = rlen-targetRestraintDistances[i];
+				restraint_energy += 0.5*restraint_k*dr*dr;
 				if (includeForces) {
-					std::vector<double> dvdx = restraint_k*(rlen-targetRestraintDistances[i])*r/rlen;
+					OpenMM::Vec3 dvdx = restraint_k*dr*r/rlen;
 			  		for (int j = 0; j < 3; j++) {
 						MDForce[g1idx][j] -= dvdx[j];
 						MDForce[g2idx][j] += dvdx[j];				  
@@ -312,7 +314,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			} else {
 				restraint_energy += restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i];
 				if (includeForces) {
-			  		std::vector<double> dvdx = restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			  		OpenMM::Vec3 dvdx = restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
 			  		for (int j = 0; j < 3; j++) {
 						MDForce[g1idx][j] -= dvdx[j];
 						MDForce[g2idx][j] += dvdx[j];

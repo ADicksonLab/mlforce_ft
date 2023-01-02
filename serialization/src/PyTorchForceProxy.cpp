@@ -51,7 +51,7 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 	node.setIntProperty("assignFreq", force.getAssignFreq());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
-	std::vector<vector<double>> params = force.getRestraintParams();
+	std::vector<double> params = force.getRestraintParams();
 	node.setDoubleProperty("rmaxDelta", params[0]);
 	node.setDoubleProperty("restraintK", params[1]);
 

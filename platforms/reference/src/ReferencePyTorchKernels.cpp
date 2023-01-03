@@ -129,7 +129,7 @@ std::vector<int> getReverseAssignment(std::vector<int> assignment) {
 	int n = assignment.size();
 	std::vector<int> rev_assignment(n, -1);
 	for (int i=0; i<n; i++) {
-		if ((assignment[i] > 0) && (assignment[i] < n)) {
+		if ((assignment[i] >= 0) && (assignment[i] < n)) {
 		  rev_assignment[assignment[i]] = i;
 		}
 	}
@@ -165,9 +165,9 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	
 	numRestraints = targetRestraintDistances.size();
 	for (int i = 0; i < numRestraints; i++) {
-		r0sq[i] = targetRestraintDistances[i]*targetRestraintDistances[i];
-		rmax[i] = targetRestraintDistances[i] + rmax_delta;
-		restraint_b[i] = 0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]);
+		r0sq.push_back(targetRestraintDistances[i]*targetRestraintDistances[i]);
+		rmax.push_back(targetRestraintDistances[i] + rmax_delta);
+		restraint_b.push_back(0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]));
 	}
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();

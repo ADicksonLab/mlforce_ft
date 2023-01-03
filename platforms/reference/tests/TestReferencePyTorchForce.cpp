@@ -73,9 +73,7 @@ void testForce() {
 	double rest_rmax_delta = 0.5;
 	double rest_k = 1000.0;
 	
-	std::cout << "Building PyTorchForce" << std::endl;
 	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k);
-	std::cout << "Adding PyTorchForce to system" << std::endl;
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -97,20 +95,16 @@ void testForce() {
 	cnb_force->addGlobalParameter("assignment_g0", 0);
 	cnb_force->addGlobalParameter("assignment_g1", 1);
 
-	std::cout << "Adding cnb_force to system" << std::endl;
 	system.addForce(cnb_force);
 
 	// Compute the forces and energy.
 
 	VerletIntegrator integ(1.0);
 	Platform& platform = Platform::getPlatformByName("Reference");
-	std::cout << "Building context" << std::endl;
 	Context context(system, integ, platform);
 	context.setPositions(positions);
-	std::cout << "Getting state from context" << std::endl;
 	State state = context.getState(State::Energy | State::Forces);
-	std::cout << "Done!" << std::endl;
-	
+		
 }
 
 

@@ -274,7 +274,6 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
 		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
 
-	double energy = energyTensor.item<double>();
 	// calculate force on the signals clips out singals from the end of features
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
 
@@ -323,10 +322,8 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			}
 		}
 	}
-	energy += restraint_energy;
 	
 	// get forces on positions as before
-
 	if (includeForces) {
 		energyTensor.backward();
 
@@ -345,5 +342,5 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 		}
 	}
-	return energy;
+	return energyTensor.item<double>() + restraint_energy;
   }

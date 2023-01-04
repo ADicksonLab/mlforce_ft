@@ -108,10 +108,10 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  * @param ptr
  * @param nRows
  * @param nCols
- * @return std::vector<std::vector<double>>
+ * @return std::vector<std::vector<double> >
  */
-std::vector<std::vector<double>> tensorTo2DVec(double* ptr, int nRows, int nCols) {
-	std::vector<std::vector<double>> distMat(nRows, std::vector<double>(nCols));
+std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
 		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
 		distMat[i] = vec;
@@ -252,7 +252,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 											 - targetFeaturesTensor, 2, 2);
 
 	  //convert it to a 2d vector
-	  std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+	  std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
 																  numGhostParticles,
 																  static_cast<int>(targetFeaturesTensor.size(0)));
 
@@ -302,23 +302,23 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			double rlen = sqrt(rlensq);
 			if (rlen < rmax[i]) {
 			    double dr = rlen-targetRestraintDistances[i];
-				restraint_energy += 0.5*restraint_k*dr*dr;
+				restraint_energy += 0.5*scale*restraint_k*dr*dr;
 				if (includeForces) {
-					OpenMM::Vec3 dvdx = restraint_k*dr*r/rlen;
+					OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
 			  		for (int j = 0; j < 3; j++) {
 						MDForce[g1idx][j] -= dvdx[j];
 						MDForce[g2idx][j] += dvdx[j];				  
 			  		}
 				}
 			} else {
-				restraint_energy += restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i];
-				if (includeForces) {
-			  		OpenMM::Vec3 dvdx = restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
-			  		for (int j = 0; j < 3; j++) {
-						MDForce[g1idx][j] -= dvdx[j];
-						MDForce[g2idx][j] += dvdx[j];
-					}
+			  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i]);
+			  if (includeForces) {
+				OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+				for (int j = 0; j < 3; j++) {
+				  MDForce[g1idx][j] -= dvdx[j];
+				  MDForce[g2idx][j] += dvdx[j];
 				}
+			  }
 			}
 		}
 	}

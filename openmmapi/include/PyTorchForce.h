@@ -52,16 +52,16 @@ public:
 	 *
 	 * @param file   the path to the file containing the network
 	 */
-  PyTorchForce(const std::string& file, std::vector<std::vector<double>> targetFeatures,
+  PyTorchForce(const std::string& file, std::vector<std::vector<double> > targetFeatures,
 			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, int assignFreq,
-			   std::vector<std::vector<int>> restraintIndices, std::vector<double> restraintDistances, double rmaxDelta, double restraintK);
+			   std::vector<std::vector<int> > restraintIndices, std::vector<double> restraintDistances, double rmaxDelta, double restraintK);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
 	const std::string& getFile() const;
 	const double getScale() const;
 	const int getAssignFreq() const;
-	const std::vector<std::vector<double>> getTargetFeatures() const;
+	const std::vector<std::vector<double> > getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	/**
@@ -69,7 +69,7 @@ public:
 	 * 
 	 * @return restraintIndices
 	 */
-	const std::vector<std::vector<int>> getRestraintIndices() const;
+	const std::vector<std::vector<int> > getRestraintIndices() const;
 	/**
 	 * Get the bond distances of the restraints.  
 	 * 
@@ -143,12 +143,12 @@ protected:
 private:
 	class GlobalParameterInfo;
 	std::string file;
-	std::vector<std::vector<double>> targetFeatures;
+	std::vector<std::vector<double> > targetFeatures;
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale;
 	int assignFreq;
-	std::vector<std::vector<int>> restraintIndices;
+	std::vector<std::vector<int> > restraintIndices;
 	std::vector<double> restraintDistances;
 	double rmaxDelta;
 	double restraintK;

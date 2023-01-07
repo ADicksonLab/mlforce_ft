@@ -160,8 +160,8 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	targetRestraintIndices = force.getRestraintIndices();
 	targetRestraintDistances = force.getRestraintDistances();
 	targetRestraintParams = force.getRestraintParams();
-	restraint_k = targetRestraintParams[0];
-	rmax_delta = targetRestraintParams[1];
+	rmax_delta = targetRestraintParams[0];
+	restraint_k = targetRestraintParams[1];
 	
 	numRestraints = targetRestraintDistances.size();
 	for (int i = 0; i < numRestraints; i++) {

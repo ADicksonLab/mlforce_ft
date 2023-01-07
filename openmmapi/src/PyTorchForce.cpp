@@ -41,12 +41,12 @@ using namespace OpenMM;
 using namespace std;
 
 PyTorchForce::PyTorchForce(const std::string& file,
-			   const std::vector<std::vector<double>> targetFeatures,
+			   std::vector<std::vector<double> > targetFeatures,
 			   const std::vector<int> particleIndices,
 			   const std::vector<double> signalForceWeights,
 			   const double scale,
 			   const int assignFreq,
-			   const std::vector<std::vector<int>> restraintIndices, 
+			   std::vector<std::vector<int> > restraintIndices, 
 			   const std::vector<double> restraintDistances, 
 			   const double rmaxDelta, 
 			   const double restraintK) :
@@ -75,7 +75,7 @@ const int PyTorchForce::getAssignFreq() const {
   return assignFreq;
 }
 
-const std::vector<std::vector<int>> PyTorchForce::getRestraintIndices() const{
+const std::vector<std::vector<int> > PyTorchForce::getRestraintIndices() const{
   return restraintIndices;
 }
 
@@ -88,7 +88,7 @@ const std::vector<double> PyTorchForce::getRestraintParams() const{
   	return params;	
 }
 
-const std::vector<std::vector<double>> PyTorchForce::getTargetFeatures() const{
+const std::vector<std::vector<double> > PyTorchForce::getTargetFeatures() const{
   return targetFeatures;
 }
 

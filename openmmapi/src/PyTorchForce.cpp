@@ -41,11 +41,15 @@ using namespace OpenMM;
 using namespace std;
 
 PyTorchForce::PyTorchForce(const std::string& file,
-			   const std::vector<std::vector<double>> targetFeatures,
+			   std::vector<std::vector<double> > targetFeatures,
 			   const std::vector<int> particleIndices,
 			   const std::vector<double> signalForceWeights,
 			   const double scale,
-			   const int assignFreq) :
+			   const int assignFreq,
+			   std::vector<std::vector<int> > restraintIndices, 
+			   const std::vector<double> restraintDistances, 
+			   const double rmaxDelta, 
+			   const double restraintK) :
 
   file(file),
   targetFeatures(targetFeatures),
@@ -53,7 +57,12 @@ PyTorchForce::PyTorchForce(const std::string& file,
   signalForceWeights(signalForceWeights),
   scale(scale),
   assignFreq(assignFreq),
-  usePeriodic(false) {
+  usePeriodic(false),
+  restraintIndices(restraintIndices),
+  restraintDistances(restraintDistances),
+  rmaxDelta(rmaxDelta),
+  restraintK(restraintK)
+  {
 }
 
 const string& PyTorchForce::getFile() const {
@@ -66,7 +75,20 @@ const int PyTorchForce::getAssignFreq() const {
   return assignFreq;
 }
 
-const std::vector<std::vector<double>> PyTorchForce::getTargetFeatures() const{
+const std::vector<std::vector<int> > PyTorchForce::getRestraintIndices() const{
+  return restraintIndices;
+}
+
+const std::vector<double> PyTorchForce::getRestraintDistances() const{
+  return restraintDistances;
+}
+
+const std::vector<double> PyTorchForce::getRestraintParams() const{
+	std::vector<double> params = {rmaxDelta, restraintK};
+  	return params;	
+}
+
+const std::vector<std::vector<double> > PyTorchForce::getTargetFeatures() const{
   return targetFeatures;
 }
 

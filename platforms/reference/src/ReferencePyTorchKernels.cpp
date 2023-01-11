@@ -91,7 +91,6 @@ static map<string, double>& extractEnergyParameterDerivatives(ContextImpl& conte
  * @param numParticles
  * @return std::vector<double>
  */
-
 std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
 	std::vector<double> signals;
 	string name;
@@ -109,16 +108,34 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  * @param ptr
  * @param nRows
  * @param nCols
- * @return std::vector<std::vector<double>>
+ * @return std::vector<std::vector<double> >
  */
-std::vector<std::vector<double>> tensorTo2DVec(double* ptr, int nRows, int nCols) {
-	std::vector<std::vector<double>> distMat(nRows, std::vector<double>(nCols));
+std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
 		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
 		distMat[i] = vec;
 	}
 	return distMat;
 }
+
+/**
+ * @brief
+ *
+ * @param assignment
+ * @return std::vector<int>
+ */
+std::vector<int> getReverseAssignment(std::vector<int> assignment) {
+	int n = assignment.size();
+	std::vector<int> rev_assignment(n, -1);
+	for (int i=0; i<n; i++) {
+		if ((assignment[i] >= 0) && (assignment[i] < n)) {
+		  rev_assignment[assignment[i]] = i;
+		}
+	}
+	return rev_assignment;
+}
+
 
 ReferenceCalcPyTorchForceKernel::~ReferenceCalcPyTorchForceKernel() {
 }
@@ -140,6 +157,18 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
+	targetRestraintIndices = force.getRestraintIndices();
+	targetRestraintDistances = force.getRestraintDistances();
+	targetRestraintParams = force.getRestraintParams();
+	rmax_delta = targetRestraintParams[0];
+	restraint_k = targetRestraintParams[1];
+	
+	numRestraints = targetRestraintDistances.size();
+	for (int i = 0; i < numRestraints; i++) {
+		r0sq.push_back(targetRestraintDistances[i]*targetRestraintDistances[i]);
+		rmax.push_back(targetRestraintDistances[i] + rmax_delta);
+		restraint_b.push_back(0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]));
+	}
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
@@ -162,7 +191,6 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	}
 
 	step_count = 0;
-
 }
 
 /**
@@ -180,7 +208,8 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	vector<Vec3>& MDForce = extractForces(context);
 
 	int numGhostParticles = particleIndices.size();
-
+	
+	
 	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 3},
 		torch::TensorOptions().requires_grad(true).dtype(torch::kFloat64));
 
@@ -223,11 +252,12 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 											 - targetFeaturesTensor, 2, 2);
 
 	  //convert it to a 2d vector
-	  std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+	  std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
 																  numGhostParticles,
 																  static_cast<int>(targetFeaturesTensor.size(0)));
 
 	  assignment = hungAlg.Solve(distMatrix);
+	  reverse_assignment = getReverseAssignment(assignment);
 
 	  // Save the assignments in the context variables
 	  for (std::size_t i=0; i<assignment.size(); i++) {
@@ -260,8 +290,40 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
 		}
 	}
+	
+	// compute energies and forces from restraints
+	double restraint_energy = 0;
+	for (int i = 0; i < numRestraints; i++) {
+		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
+		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+		if (rlensq > r0sq[i]) {
+			double rlen = sqrt(rlensq);
+			if (rlen < rmax[i]) {
+			    double dr = rlen-targetRestraintDistances[i];
+				restraint_energy += 0.5*scale*restraint_k*dr*dr;
+				if (includeForces) {
+					OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			  		for (int j = 0; j < 3; j++) {
+						MDForce[g1idx][j] -= dvdx[j];
+						MDForce[g2idx][j] += dvdx[j];				  
+			  		}
+				}
+			} else {
+			  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i]);
+			  if (includeForces) {
+				OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+				for (int j = 0; j < 3; j++) {
+				  MDForce[g1idx][j] -= dvdx[j];
+				  MDForce[g2idx][j] += dvdx[j];
+				}
+			  }
+			}
+		}
+	}
+	
 	// get forces on positions as before
-
 	if (includeForces) {
 		energyTensor.backward();
 
@@ -280,5 +342,5 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 		}
 	}
-	return energyTensor.item<double>();
+	return energyTensor.item<double>() + restraint_energy;
   }

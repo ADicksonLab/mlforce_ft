@@ -79,6 +79,12 @@ void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) c
 		 ParticleIndicesNode.createChildNode("Index").setIntProperty("value", ParticleIndices[i]);
 	}
 
+	std::vector<int>  initialAssignment = force.getInitialAssignment();
+	SerializationNode& initialAssignmentNode = node.createChildNode("InitialAssignment");
+	for (int i = 0; i < initialAssignment.size(); i++) {
+		 initialAssignmentNode.createChildNode("assignment").setIntProperty("value", initialAssignment[i]);
+	}
+	
 	std::vector<double>  signalForceWeights = force.getSignalForceWeights();
 	SerializationNode&  signalForceWeightsNode = node.createChildNode("SignalForceWeights");
 	for (int i = 0; i < signalForceWeights.size(); i++) {
@@ -109,7 +115,6 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 
 	const SerializationNode& restraintIndicesNode = node.getChildNode("RestraintIndices");
 	int	numRestraints = restraintIndicesNode.getChildren().size();
-
 	std::vector<std::vector<int>> restraint_idxs(numRestraints);
 	for (int i=0; i<numRestraints; i++){
 		const SerializationNode& idxsNode = restraintIndicesNode.getChildren()[i];
@@ -130,6 +135,12 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 		indices.push_back(index.getIntProperty("value"));
 	}
 
+	std::vector<int> initialAssignment;
+	const SerializationNode& initialAssignmentNode = node.getChildNode("InitialAssignment");
+	for (auto & assignment: initialAssignmentNode.getChildren()) {
+		initialAssignment.push_back(assignment.getIntProperty("value"));
+	}
+	
 	std::vector<double> signalForceWeights;
 	const SerializationNode& signalForceWeightsNode = node.getChildNode("SignalForceWeights");
 	for (auto &weight:signalForceWeightsNode.getChildren()){
@@ -137,8 +148,9 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 	}
 
 	PyTorchForce* force = new PyTorchForce(node.getStringProperty("file"),  targetfeatures,
-										indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"),
-										restraint_idxs, restraint_dists, node.getDoubleProperty("rmaxDelta"), node.getDoubleProperty("restraintK"));
+										   indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"),
+										   restraint_idxs, restraint_dists, node.getDoubleProperty("rmaxDelta"), node.getDoubleProperty("restraintK"),
+										   initialAssignment);
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));
 

@@ -41,15 +41,16 @@ using namespace OpenMM;
 using namespace std;
 
 PyTorchForce::PyTorchForce(const std::string& file,
-			   std::vector<std::vector<double> > targetFeatures,
-			   const std::vector<int> particleIndices,
-			   const std::vector<double> signalForceWeights,
-			   const double scale,
-			   const int assignFreq,
-			   std::vector<std::vector<int> > restraintIndices, 
-			   const std::vector<double> restraintDistances, 
-			   const double rmaxDelta, 
-			   const double restraintK) :
+						   std::vector<std::vector<double> > targetFeatures,
+						   const std::vector<int> particleIndices,
+						   const std::vector<double> signalForceWeights,
+						   const double scale,
+						   const int assignFreq,
+						   std::vector<std::vector<int> > restraintIndices, 
+						   const std::vector<double> restraintDistances, 
+						   const double rmaxDelta, 
+						   const double restraintK,
+						   const std::vector<int> initialAssignment) :
 
   file(file),
   targetFeatures(targetFeatures),
@@ -61,7 +62,8 @@ PyTorchForce::PyTorchForce(const std::string& file,
   restraintIndices(restraintIndices),
   restraintDistances(restraintDistances),
   rmaxDelta(rmaxDelta),
-  restraintK(restraintK)
+  restraintK(restraintK),
+  initialAssignment(initialAssignment)
   {
 }
 
@@ -73,6 +75,10 @@ const double PyTorchForce::getScale() const {
 }
 const int PyTorchForce::getAssignFreq() const {
   return assignFreq;
+}
+
+const std::vector<int> PyTorchForce::getInitialAssignment() const {
+  return initialAssignment;
 }
 
 const std::vector<std::vector<int> > PyTorchForce::getRestraintIndices() const{

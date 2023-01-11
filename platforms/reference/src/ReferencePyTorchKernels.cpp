@@ -162,6 +162,9 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	targetRestraintParams = force.getRestraintParams();
 	rmax_delta = targetRestraintParams[0];
 	restraint_k = targetRestraintParams[1];
+
+	assignment = force.getInitialAssignment();
+	reverse_assignment = getReverseAssignment(assignment);
 	
 	numRestraints = targetRestraintDistances.size();
 	for (int i = 0; i < numRestraints; i++) {
@@ -243,29 +246,34 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 
 	// call Hungarian algorithm to determine mapping (and loss)
-	if (step_count % assignFreq == 0) {
+	if (assignFreq > 0) {
+	  if (step_count % assignFreq == 0) {
 
-	  // concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
-	  torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
+		// concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
+		torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
-	  torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
-											 - targetFeaturesTensor, 2, 2);
+		torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
+											   - targetFeaturesTensor, 2, 2);
 
-	  //convert it to a 2d vector
-	  std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
-																  numGhostParticles,
-																  static_cast<int>(targetFeaturesTensor.size(0)));
+		//convert it to a 2d vector
+		std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+																	 numGhostParticles,
+																	 static_cast<int>(targetFeaturesTensor.size(0)));
 
-	  assignment = hungAlg.Solve(distMatrix);
-	  reverse_assignment = getReverseAssignment(assignment);
+		assignment = hungAlg.Solve(distMatrix);
+		reverse_assignment = getReverseAssignment(assignment);
 
+		// Save the assignments in the context variables
+		for (std::size_t i=0; i<assignment.size(); i++) {
+		  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+		}	
+	  }
+	} else if (step_count == 0) {
 	  // Save the assignments in the context variables
 	  for (std::size_t i=0; i<assignment.size(); i++) {
 		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
-	  }
-
+	  }	
 	}
-
 	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping

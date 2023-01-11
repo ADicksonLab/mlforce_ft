@@ -54,7 +54,7 @@ public:
 	 */
   PyTorchForce(const std::string& file, std::vector<std::vector<double> > targetFeatures,
 			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, int assignFreq,
-			   std::vector<std::vector<int> > restraintIndices, std::vector<double> restraintDistances, double rmaxDelta, double restraintK);
+			   std::vector<std::vector<int> > restraintIndices, std::vector<double> restraintDistances, double rmaxDelta, double restraintK, std::vector<int> initialAssignment);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
@@ -64,6 +64,13 @@ public:
 	const std::vector<std::vector<double> > getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
+	/**
+	 * Get the initial assignments of ghost particles to 
+	 * target atoms.  
+	 * 
+	 * @return initialAssignment
+	 */
+	const std::vector<int> getInitialAssignment() const;
 	/**
 	 * Get the atomic indices associated with each restraint.  
 	 * 
@@ -145,6 +152,7 @@ private:
 	std::string file;
 	std::vector<std::vector<double> > targetFeatures;
 	std::vector<int> particleIndices;
+	std::vector<int> initialAssignment;
 	std::vector<double> signalForceWeights;
 	double scale;
 	int assignFreq;

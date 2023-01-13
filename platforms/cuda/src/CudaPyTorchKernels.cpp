@@ -305,11 +305,11 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 		}
 	}
 
+	double restraint_energy = 0;
 	torch::Tensor restraintForceTensor = torch::zeros({numParticles, 3}, options);
 	if (cu.getUseDoublePrecision()) {
 	  auto rfaccessor = restraintForceTensor.accessor<double,2>();
 	  // compute energies and forces from restraints
-	  double restraint_energy = 0;
 	  for (int i = 0; i < numRestraints; i++) {
 		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
@@ -342,7 +342,6 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 	} else {
 	  auto rfaccessor = restraintForceTensor.accessor<float,2>();
 	  // compute energies and forces from restraints
-	  float restraint_energy = 0;
 	  for (int i = 0; i < numRestraints; i++) {
 		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];

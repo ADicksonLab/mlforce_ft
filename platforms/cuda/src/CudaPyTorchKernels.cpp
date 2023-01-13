@@ -67,8 +67,8 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  * @param nCols
  * @return std::vector<std::vector<double>>
  */
-std::vector<std::vector<double>> tensorTo2DVec(double* ptr, int nRows, int nCols) {
-	std::vector<std::vector<double>> distMat(nRows, std::vector<double>(nCols));
+std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
 		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
 		distMat[i] = vec;
@@ -83,6 +83,17 @@ if (result != CUDA_SUCCESS) { \
 	std::stringstream m; \
 	m<<prefix<<": "<<cu.getErrorString(result)<<" ("<<result<<")"<<" at "<<__FILE__<<":"<<__LINE__; \
 	throw OpenMMException(m.str());\
+}
+
+std::vector<int> getReverseAssignment(std::vector<int> assignment) {
+	int n = assignment.size();
+	std::vector<int> rev_assignment(n, -1);
+	for (int i=0; i<n; i++) {
+		if ((assignment[i] >= 0) && (assignment[i] < n)) {
+		  rev_assignment[assignment[i]] = i;
+		}
+	}
+	return rev_assignment;
 }
 
 /**
@@ -104,15 +115,31 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 	nnModule.to(torch::kCPU);
 	nnModule.eval();
 
-	usePeriodic = force.usesPeriodicBoundaryConditions();
 	scale = force.getScale();
 	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
-	usePeriodic = force.usesPeriodicBoundaryConditions();
 	signalForceWeights = force.getSignalForceWeights();
+	targetRestraintIndices = force.getRestraintIndices();
+	targetRestraintDistances = force.getRestraintDistances();
+	targetRestraintParams = force.getRestraintParams();
+	rmax_delta = targetRestraintParams[0];
+	restraint_k = targetRestraintParams[1];
+
+	assignment = force.getInitialAssignment();
+	reverse_assignment = getReverseAssignment(assignment);
+	
+	numRestraints = targetRestraintDistances.size();
+	for (int i = 0; i < numRestraints; i++) {
+		r0sq.push_back(targetRestraintDistances[i]*targetRestraintDistances[i]);
+		rmax.push_back(targetRestraintDistances[i] + rmax_delta);
+		restraint_b.push_back(0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]));
+	}
+
+	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
 
-	std::vector<std::vector<double>> targetFeatures = force.getTargetFeatures();
+	//get target features
+	targetFeatures = force.getTargetFeatures();
 	targetFeaturesTensor = torch::zeros({static_cast<int64_t>(targetFeatures.size()),
 		static_cast<int64_t>(targetFeatures[0].size())},
 		torch::kFloat64);
@@ -144,6 +171,14 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 	step_count = 0;
 }
 
+/**
+ * @brief
+ *
+ * @param context
+ * @param includeForces
+ * @param includeEnergy
+ * @return double
+ */
 double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeForces, bool includeEnergy) {
 
 	int numParticles = cu.getNumAtoms();
@@ -182,8 +217,12 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 	signalsTensor = signalsTensor.to(options);
 	positionsTensor = positionsTensor.to(options);
 	positionsTensor.requires_grad_(true);
+
+	// Run the pytorch model and get the energy
 	auto charges = signalsTensor.index({Slice(), 0});
 	vector<torch::jit::IValue> nnInputs = {positionsTensor, charges};
+
+	// Copy the box vector
 	if (usePeriodic) {
 	  Vec3 box[3];
 	  cu.getPeriodicBoxVectors(box[0], box[1], box[2]);
@@ -198,46 +237,52 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 
-	if (step_count % assignFreq == 0) {
-	  // concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
-	  torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
+    // call Hungarian algorithm to determine mapping (and loss)
+    if (assignFreq > 0) {
+	  if (step_count % assignFreq == 0) {
 
-	  torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
-											 - targetFeaturesTensor, 2, 2);
+		// concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
+		torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
-	  //convert it to a 2d vector
-	  if (!cu.getUseDoublePrecision())
-		distMatTensor=distMatTensor.to(torch::kFloat64);
+		torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
+											   - targetFeaturesTensor, 2, 2);
 
-	  std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
-																  numGhostParticles,
-																  static_cast<int>(targetFeaturesTensor.size(0)));
+		//convert it to a 2d vector
+		if (!cu.getUseDoublePrecision())
+		  distMatTensor=distMatTensor.to(torch::kFloat64);
 
-	  // call Hungarian algorithm to determine mapping (and loss)
-	  assignment = hungAlg.Solve(distMatrix);
+		std::vector<std::vector<double>> distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+																	numGhostParticles,
+																	static_cast<int>(targetFeaturesTensor.size(0)));
 
-	  // Save the assignments in the context variables
-	  for (std::size_t i=0; i<assignment.size(); i++) {
-		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+		// call Hungarian algorithm to determine mapping (and loss)
+		assignment = hungAlg.Solve(distMatrix);
+		reverse_assignment = getReverseAssignment(assignment);
+
+		// Save the assignments in the context variables
+		for (std::size_t i=0; i<assignment.size(); i++) {
+		  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+		}
 	  }
-	}
-
+	} else if (step_count == 0) {
+      // Save the assignments in the context variables                                            
+      for (std::size_t i=0; i<assignment.size(); i++) {
+        context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+      }
+    }
 	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();
-	//select ANI faetures
 
-
-	// get forces on positions as before
+	// determine energy using the feature loss
 	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
 		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
 
-
-	// calculate force on the signals clips out singals from the end of features
+	// calculate force on the signals (first, clip out signals from the end of features)
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
-	// update the global variables derivatives
 
+	// update the global variables derivatives
 	map<string, double> &energyParamDerivs = cu.getEnergyParamDerivWorkspace();
 
 	if (cu.getUseDoublePrecision()) {
@@ -249,8 +294,7 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 				energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
 			}
 		}
-	}
-	else {
+	} else {
 		float parameter_deriv;
 		auto targetSignalsData = targtSignalsTensor.accessor<float, 2>();
 		for (int i = 0; i < numGhostParticles; i++) {
@@ -261,16 +305,91 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 		}
 	}
 
+	torch::Tensor restraintForceTensor = torch::zeros({numParticles, 3}, options);
+	if (cu.getUseDoublePrecision()) {
+	  auto rfaccessor = restraintForceTensor.accessor<double,2>();
+	  // compute energies and forces from restraints
+	  double restraint_energy = 0;
+	  for (int i = 0; i < numRestraints; i++) {
+		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
+		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+		if (rlensq > r0sq[i]) {
+		  double rlen = sqrt(rlensq);
+		  if (rlen < rmax[i]) {
+			double dr = rlen-targetRestraintDistances[i];
+			restraint_energy += 0.5*scale*restraint_k*dr*dr;
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  } else {
+			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  }
+        }
+	  }
+	} else {
+	  auto rfaccessor = restraintForceTensor.accessor<float,2>();
+	  // compute energies and forces from restraints
+	  float restraint_energy = 0;
+	  for (int i = 0; i < numRestraints; i++) {
+		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
+		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		float rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+		if (rlensq > r0sq[i]) {
+		  float rlen = sqrt(rlensq);
+		  if (rlen < rmax[i]) {
+			float dr = rlen-targetRestraintDistances[i];
+			restraint_energy += 0.5*scale*restraint_k*dr*dr;
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  } else {
+			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  }
+        }
+	  }	  
+	}
+	
+	// get forces on positions as before
 	if (includeForces) {
 		energyTensor.backward();
+
+		// check if positions have gradients
 		auto forceTensor = torch::zeros_like(positionsTensor);
 		forceTensor = - positionsTensor.grad().clone();
 		positionsTensor.grad().zero_();
+
 		torch::Tensor paddedForceTensor = torch::zeros({numParticles, 3}, options);
 		paddedForceTensor.narrow(0,
 			static_cast<int64_t>(particleIndices[0]),
 			static_cast<int64_t>(particleIndices.size())).copy_(forceTensor);
 
+		paddedForceTensor.add(restraintForceTensor);
+		
 		const torch::Device device(torch::kCUDA, cu.getDeviceIndex());
 		paddedForceTensor = paddedForceTensor.to(device);
 		CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
@@ -288,9 +407,8 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 		}
 		int paddedNumAtoms = cu.getPaddedNumAtoms();
 		void* forceArgs[] = {&fdata, &cu.getForce().getDevicePointer(),
-			&cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
-			cu.executeKernel(addForcesKernel, forceArgs, numParticles);
-
+							 &cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
+		cu.executeKernel(addForcesKernel, forceArgs, numParticles);
 	}
-	return energyTensor.item<double>();
+	return energyTensor.item<double>() + restraint_energy;
 }

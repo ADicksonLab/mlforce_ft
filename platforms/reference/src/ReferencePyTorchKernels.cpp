@@ -278,22 +278,21 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();
-	//select ANI faetures
+
+	// determine energy using the feature loss
 	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
 		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
 
-	// calculate force on the signals clips out singals from the end of features
+	// calculate force on the signals (first, clip out signals from the end of features) 
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
 
 	// update the global variables derivatives
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
 	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
 	double parameter_deriv;
-	// double target_sig;
 	for (int i = 0; i < numGhostParticles; i++) {
 		for (int j=0; j<4; j++)
 		{
-			//target_sig = targtSignalsTensor.data_ptr<double>()[i,j];
 			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
 		}

@@ -262,18 +262,12 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 
 		assignment = hungAlg.Solve(distMatrix);
 		reverse_assignment = getReverseAssignment(assignment);
-
-		// Save the assignments in the context variables
-		for (std::size_t i=0; i<assignment.size(); i++) {
-		  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
-		}	
 	  }
-	} else if (step_count == 0) {
-	  // Save the assignments in the context variables
-	  for (std::size_t i=0; i<assignment.size(); i++) {
-		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
-	  }	
 	}
+	// Save the assignments in the context variables
+	for (std::size_t i=0; i<assignment.size(); i++) {
+	  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+	}	
 	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping

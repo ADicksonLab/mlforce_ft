@@ -290,11 +290,13 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
 	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
 	double parameter_deriv;
-	double param_energy = 0; //to do: make sure that signalForceWeights is reflected in the energy
+	double param_energy = 0; 
 	for (int i = 0; i < numGhostParticles; i++) {
 		for (int j=0; j<4; j++)
 		{
 			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
+			// to do: need to substract out the (much smaller) energy arising from target signal discrepancies in the energyTensor
+			param_energy += 0.5*(signalForceWeights[j]-1)*(globalVariables[i*4+j] - targetSignalsData[i][j])*(globalVariables[i*4+j] - targetSignalsData[i][j]);
 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
 		}
 	}
@@ -350,5 +352,5 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 		}
 	}
-	return energyTensor.item<double>() + restraint_energy;
+	return energyTensor.item<double>() + restraint_energy + param_energy;
   }

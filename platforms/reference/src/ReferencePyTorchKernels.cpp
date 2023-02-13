@@ -290,6 +290,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
 	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
 	double parameter_deriv;
+	double param_energy = 0; //to do: make sure that signalForceWeights is reflected in the energy
 	for (int i = 0; i < numGhostParticles; i++) {
 		for (int j=0; j<4; j++)
 		{

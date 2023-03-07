@@ -33,7 +33,8 @@ public:
 				 std::vector<std::vector<int> > restraintIndices,
 				 const std::vector<double> restraintDistances,
 				 double rmaxDelta,
-				 double restraintK
+				 double restraintK,
+				 const std::vector<int> initialAssignment
 				 );
 
 	const std::string& getFile() const;
@@ -53,6 +54,7 @@ public:
 	const std::vector<std::vector<int> > getRestraintIndices() const;
 	const std::vector<double> getRestraintDistances() const;
 	const std::vector<double> getRestraintParams() const;
+	const std::vector<int> getInitialAssignment() const;
 };
 
 }

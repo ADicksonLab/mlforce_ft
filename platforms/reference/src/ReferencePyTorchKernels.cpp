@@ -162,6 +162,9 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	targetRestraintParams = force.getRestraintParams();
 	rmax_delta = targetRestraintParams[0];
 	restraint_k = targetRestraintParams[1];
+
+	assignment = force.getInitialAssignment();
+	reverse_assignment = getReverseAssignment(assignment);
 	
 	numRestraints = targetRestraintDistances.size();
 	for (int i = 0; i < numRestraints; i++) {
@@ -243,50 +246,51 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 
 	// call Hungarian algorithm to determine mapping (and loss)
-	if (step_count % assignFreq == 0) {
+	if (assignFreq > 0) {
+	  if (step_count % assignFreq == 0) {
 
-	  // concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
-	  torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
+		// concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
+		torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
-	  torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
-											 - targetFeaturesTensor, 2, 2);
+		torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
+											   - targetFeaturesTensor, 2, 2);
 
-	  //convert it to a 2d vector
-	  std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
-																  numGhostParticles,
-																  static_cast<int>(targetFeaturesTensor.size(0)));
+		//convert it to a 2d vector
+		std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distMatTensor.data_ptr<double>(),
+																	 numGhostParticles,
+																	 static_cast<int>(targetFeaturesTensor.size(0)));
 
-	  assignment = hungAlg.Solve(distMatrix);
-	  reverse_assignment = getReverseAssignment(assignment);
-
-	  // Save the assignments in the context variables
-	  for (std::size_t i=0; i<assignment.size(); i++) {
-		context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+		assignment = hungAlg.Solve(distMatrix);
+		reverse_assignment = getReverseAssignment(assignment);
 	  }
-
 	}
-
+	// Save the assignments in the context variables
+	for (std::size_t i=0; i<assignment.size(); i++) {
+	  context.setParameter("assignment_g"+std::to_string(i), assignment[i]);
+	}	
 	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();
-	//select ANI faetures
+
+	// determine energy using the feature loss
 	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
 		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
 
-	// calculate force on the signals clips out singals from the end of features
+	// calculate force on the signals (first, clip out signals from the end of features) 
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
 
 	// update the global variables derivatives
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
 	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
 	double parameter_deriv;
-	// double target_sig;
+	double param_energy = 0; 
 	for (int i = 0; i < numGhostParticles; i++) {
 		for (int j=0; j<4; j++)
 		{
-			//target_sig = targtSignalsTensor.data_ptr<double>()[i,j];
 			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
+			// to do: need to substract out the (much smaller) energy arising from target signal discrepancies in the energyTensor
+			param_energy += 0.5*(signalForceWeights[j]-1)*(globalVariables[i*4+j] - targetSignalsData[i][j])*(globalVariables[i*4+j] - targetSignalsData[i][j]);
 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
 		}
 	}
@@ -342,5 +346,5 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 		}
 	}
-	return energyTensor.item<double>() + restraint_energy;
+	return energyTensor.item<double>() + restraint_energy + param_energy;
   }

@@ -45,8 +45,6 @@ using namespace std;
 using namespace torch::indexing;
 static const std::vector<string> PARAMETERNAMES={"charge_g", "sigma_g", "epsilon_g", "lambda_g"};
 
-
-
 namespace PyTorchPlugin {
 
 /**
@@ -57,12 +55,25 @@ public:
 	ReferenceCalcPyTorchForceKernel(std::string name, const OpenMM::Platform& platform) : CalcPyTorchForceKernel(name, platform) {
 	}
 	~ReferenceCalcPyTorchForceKernel();
-
+      /**
+     * Initialize the kernel.
+     *
+     * @param system         the System this kernel will be applied to
+     * @param force          the PyTorchForce this kernel will be used for
+     * @param module         the Pytorch model to use for computing forces and energy
+     */
 	void initialize(const OpenMM::System& system, const PyTorchForce& force,
 			torch::jit::script::Module nnModule);
 
+    /**
+     * Execute the kernel to calculate the forces and/or energy.
+     *
+     * @param context        the context in which to execute this kernel
+     * @param includeForces  true if forces should be calculated
+     * @param includeEnergy  true if the energy should be calculated
+     * @return the potential energy due to the force
+     */
 	double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
-  //std::vector<std::vector<double>>& tensorToVec(double* ptr, int nRows, int nCols);
 private:
 	torch::jit::script::Module nnModule;
 	torch::Tensor boxVectorsTensor;
@@ -77,7 +88,6 @@ private:
 	double restraint_k, rmax_delta;
 	double scale;
 	bool usePeriodic;
-  //Distances  distALg;
     HungarianAlgorithm hungAlg;
     int step_count;
     int assignFreq;

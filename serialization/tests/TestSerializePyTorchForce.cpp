@@ -1,5 +1,5 @@
 /* -------------------------------------------------------------------------- *
-VBBBBBBB *                                 OpenMM-NN                                    *
+ *                                 OpenMM-NN                                    *
  * -------------------------------------------------------------------------- *
  * This is part of the OpenMM molecular simulation toolkit originating from   *
  * Simbios, the NIH National Center for Physics-Based Simulation of           *
@@ -53,7 +53,8 @@ void testSerialization() {
 	std::vector<double> rest_dists={0.1};
 	double rmaxDelta = 0.5;
 	double restraintK = 1000;
-	PyTorchForce force("graph.pb", features, pindices, weights, scale, assignFreq, rest_idxs, rest_dists, rmaxDelta, restraintK);
+	std::vector<int> init_assign={0,1};
+	PyTorchForce force("graph.pb", features, pindices, weights, scale, assignFreq, rest_idxs, rest_dists, rmaxDelta, restraintK, init_assign);
 
 	// Serialize and then deserialize it.
 
@@ -78,8 +79,11 @@ void testSerialization() {
 	ASSERT_EQUAL(force.getRestraintIndices()[0][0], force2.getRestraintIndices()[0][0]);
 	ASSERT_EQUAL(force.getRestraintIndices()[0][1], force2.getRestraintIndices()[0][1]);
 	ASSERT_EQUAL(force.getRestraintDistances()[0], force2.getRestraintDistances()[0]);
-	ASSERT_EQUAL(force.getRestraintParams()[0], force2.getRestraintParams()[0])
-	ASSERT_EQUAL(force.getRestraintParams()[1], force2.getRestraintParams()[1])
+	ASSERT_EQUAL(force.getRestraintParams()[0], force2.getRestraintParams()[0]);
+	ASSERT_EQUAL(force.getRestraintParams()[1], force2.getRestraintParams()[1]);
+	ASSERT_EQUAL(force.getInitialAssignment()[0], force2.getInitialAssignment()[0]);
+	ASSERT_EQUAL(force.getInitialAssignment()[1], force2.getInitialAssignment()[1]);
+
 }
 
 int main() {

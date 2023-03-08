@@ -218,7 +218,7 @@ void testForceVariableAssignments() {
 	  n = sprintf(varname, "assignment_g%d", i);
 	  new_a.push_back(props[varname]);
 	  ASSERT(props[varname] >= 0);
-	  ASSERT(props[varname] <= numParticles);
+	  ASSERT(props[varname] < numParticles);
 	  if (i > 0) {
 		for (int j = 0; j < i; j++) {
 		  ASSERT(props[varname] != new_a[j]);

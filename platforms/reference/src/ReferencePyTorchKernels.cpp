@@ -302,6 +302,8 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
 		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
 		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+
+		std::cout << "in restloop:" << r << std::endl;
 		if (rlensq > r0sq[i]) {
 			double rlen = sqrt(rlensq);
 			if (rlen < rmax[i]) {

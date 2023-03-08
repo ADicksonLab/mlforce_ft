@@ -272,28 +272,26 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
 		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
 
-		if (rlensq > r0sq[i]) {
-			double rlen = sqrt(rlensq);
-			if (rlen < rmax[i]) {
-			    double dr = rlen-targetRestraintDistances[i];
-				restraint_energy += 0.5*scale*restraint_k*dr*dr;
-				if (includeForces) {
-					OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
-			  		for (int j = 0; j < 3; j++) {
-						MDForce[g1idx][j] -= dvdx[j];
-						MDForce[g2idx][j] += dvdx[j];				  
-			  		}
-				}
-			} else {
-			  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i]);
-			  if (includeForces) {
-				OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
-				for (int j = 0; j < 3; j++) {
-				  MDForce[g1idx][j] -= dvdx[j];
-				  MDForce[g2idx][j] += dvdx[j];
-				}
-			  }
+		double rlen = sqrt(rlensq);
+		if (rlen < rmax[i]) {
+		  double dr = rlen-targetRestraintDistances[i];
+		  restraint_energy += 0.5*scale*restraint_k*dr*dr;
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  MDForce[g1idx][j] -= dvdx[j];
+			  MDForce[g2idx][j] += dvdx[j];				  
 			}
+		  }
+		} else {
+		  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen + restraint_b[i]);
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  MDForce[g1idx][j] -= dvdx[j];
+			  MDForce[g2idx][j] += dvdx[j];
+			}
+		  }
 		}
 	}
 	

@@ -278,26 +278,24 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
 		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
 		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-		if (rlensq > r0sq[i]) {
-		  double rlen = sqrt(rlensq);
-		  if (rlen < rmax[i]) {
-			double dr = rlen-targetRestraintDistances[i];
-			restraint_energy += 0.5*scale*restraint_k*dr*dr;
-			if (includeForces) {
-			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
-			  for (int j = 0; j < 3; j++) {
-				rfaccessor[g1idx][j] -= dvdx[j];
-				rfaccessor[g2idx][j] += dvdx[j];
-			  }
+		double rlen = sqrt(rlensq);
+		if (rlen < rmax[i]) {
+		  double dr = rlen-targetRestraintDistances[i];
+		  restraint_energy += 0.5*scale*restraint_k*dr*dr;
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  rfaccessor[g1idx][j] -= dvdx[j];
+			  rfaccessor[g2idx][j] += dvdx[j];
 			}
-		  } else {
-			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
-			if (includeForces) {
-			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
-			  for (int j = 0; j < 3; j++) {
-				rfaccessor[g1idx][j] -= dvdx[j];
-				rfaccessor[g2idx][j] += dvdx[j];
-			  }
+		  }
+		} else {
+		  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  rfaccessor[g1idx][j] -= dvdx[j];
+			  rfaccessor[g2idx][j] += dvdx[j];
 			}
 		  }
         }
@@ -310,29 +308,27 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context, bool includeFor
 		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
 		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
 		float rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-		if (rlensq > r0sq[i]) {
-		  float rlen = sqrt(rlensq);
-		  if (rlen < rmax[i]) {
-			float dr = rlen-targetRestraintDistances[i];
-			restraint_energy += 0.5*scale*restraint_k*dr*dr;
-			if (includeForces) {
-			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
-			  for (int j = 0; j < 3; j++) {
-				rfaccessor[g1idx][j] -= dvdx[j];
-				rfaccessor[g2idx][j] += dvdx[j];
-			  }
-			}
-		  } else {
-			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
-			if (includeForces) {
-			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
-			  for (int j = 0; j < 3; j++) {
-				rfaccessor[g1idx][j] -= dvdx[j];
-				rfaccessor[g2idx][j] += dvdx[j];
-			  }
+		float rlen = sqrt(rlensq);
+		if (rlen < rmax[i]) {
+		  float dr = rlen-targetRestraintDistances[i];
+		  restraint_energy += 0.5*scale*restraint_k*dr*dr;
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  rfaccessor[g1idx][j] -= dvdx[j];
+			  rfaccessor[g2idx][j] += dvdx[j];
 			}
 		  }
-        }
+		} else {
+		  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+		  if (includeForces) {
+			OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			for (int j = 0; j < 3; j++) {
+			  rfaccessor[g1idx][j] -= dvdx[j];
+			  rfaccessor[g2idx][j] += dvdx[j];
+			}
+		  }
+		}
 	  }	  
 	}
 

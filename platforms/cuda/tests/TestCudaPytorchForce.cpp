@@ -34,7 +34,7 @@ void testForce() {
 	}
 	std::vector<vector<double>> features(2, std::vector<double>(180));
 	std::vector<int> pindices={0, 1};
-	std::vector<double> weights={0.1,0.2};
+	std::vector<double> weights={40000.0, 50000.0, 1000.0, 20000.0};
 	double scale = 10.0;
 	int assignFreq = 1;
 	std::vector<std::vector<int>> rest_idxs {{0,1}};

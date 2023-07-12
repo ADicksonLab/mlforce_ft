@@ -41,7 +41,7 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  */
 
  // this function converts a 1D tensor into a 2D vector (distMat). Each row of the input array is mapped to a row in the resulting 2D vector. 
- // distMat shape is nRows rows and nCols columns.
+ // distMat has nRows rows and nCols columns.
 std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
 	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
@@ -89,14 +89,7 @@ CudaCalcPyTorchForceKernel::~CudaCalcPyTorchForceKernel() {
 
 void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module nnModule) {
 
-	/*assigns the value of the nnModule parameter to the nnModule member variable of the current class instance (this).
-	Using "this" is especially useful when there is a need to disambiguate between member variables and function parameters
-	or local variables that have the same name.
-	It helps in explicitly referring to the member variables of the current object.*/
 	this->nnModule = nnModule; 
-	
-	/*When a module is in evaluation mode, it means that certain modules within the model will behave differently compared to training mode. 
-	Specifically, dropout layers will not randomly drop inputs, and batch normalization layers will use the running statistics instead of batch statistics.*/
 	nnModule.eval();
 
 	scale = force.getScale();
@@ -142,6 +135,7 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 		dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
 
 	targetFeaturesTensor = targetFeaturesTensor.to(options);
+	signalFW_tensor= signalFW_tensor.to(options);
 
 	if (usePeriodic) {
 		boxVectorsTensor = torch::empty({3, 3}, options);
@@ -167,7 +161,6 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
  * @return double
  */
 double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForces, bool includeEnergy) {
-	// std::cout << "#####INSIDE EXECUTE!!!!#######" <<std::endl;
 
 	int numParticles = cu.getNumAtoms();
 	int numGhostParticles = particleIndices.size();
@@ -208,10 +201,8 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 	signalsTensor.requires_grad_(true) ;
 
 	// Run the pytorch model and get the energy
-	auto charges = signalsTensor.index({Slice(), 0}); // auto keyword is used for automatic type deduction. 
+	auto charges = signalsTensor.index({Slice(), 0}); 
 
-	/* IValue objects can store different types of data, including tensors, lists, dictionaries, and custom types.
-	It provides a flexible and type-safe way to work with inputs and outputs in the JIT (Just-in-Time) compilation and execution of PyTorch models.*/
 	vector<torch::jit::IValue> nnInputs = {positionsTensor, charges};
 
 	// Copy the box vector
@@ -232,23 +223,22 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 
 	// Creating the ForceWeights Tensor
 	torch::IntArrayRef outputTensorSize = outputTensor.size(1); // Number of features (except gp attributes)
-	torch::Tensor AEVForceWeights = torch::ones({outputTensorSize}, torch::kFloat64); 
+	torch::Tensor AEVForceWeights = torch::ones({outputTensorSize}, options); 
 	torch::Tensor allForceWeights = torch::cat({ AEVForceWeights, signalFW_tensor}, 0); // all force weights (features + attributes)
-	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1); // I moved it from inside the if statement to here!
-	
+	// concat ANI AEVS with atomic attributes [charge, sigma, epsilon, lambda]
+	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1); 
+
+	allForceWeights = allForceWeights.to(options);
+	ghFeaturesTensor = ghFeaturesTensor.to(options);
 
     // call Hungarian algorithm to determine mapping (and loss)
     if (assignFreq > 0) {
 	  if (step_count % assignFreq == 0) {
-
-		// concat ANI AEVS with atomic attributes [charge, sigma, epsilon, lambda]
-		// torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
-		
 		// torch:
 		torch::Tensor distMatTensor = at::norm((ghFeaturesTensor.index({Slice(), None})
 											   - targetFeaturesTensor) , 2, 2);
 
-		//convert it to a 2d vector
+	
 		if (!cu.getUseDoublePrecision())
 		  distMatTensor=distMatTensor.to(torch::kFloat64);
 
@@ -271,61 +261,16 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 	// and then creates a deep copy of the reorder tensor in the variable reFeaturesTensor. 
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();
 
-	// determine energy using the feature loss
-	// for calculating energyTensor we only consider the first 176 features(not attributes) of target and gp. But why???
-	// mse_loss = (1 / n) * sum((input - target) ** 2)
-	// the output of torch::mse_loss is a scalar.
-	// energyTensor size should be a 1D tensor with num_gp elements. (num_rows of outputTensor)
-	// torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor, // need changes 
-	// 	reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
-
-	// This is also correct: (this method and below method to calculate weighted loss have the same output.)
-	// torch::Tensor lossRedNone = torch::mse_loss(ghFeaturesTensor, reFeaturesTensor, torch::Reduction::None);
-	// torch::Tensor mse = torch::mean(loss_RedNone * allForceWeights);
-	// torch::Tensor energyTensor = scale * mse.clone();
-
 	torch::Tensor diff = ghFeaturesTensor - reFeaturesTensor ;
 	torch::Tensor mse =  (diff * diff* allForceWeights).sum()/ (ghFeaturesTensor.size(0) * ghFeaturesTensor.size(1));
 	torch::Tensor energyTensor = scale * mse.clone();
 
 	// calculate force on the signals (first, clip out signals from the end of features)
-	/* we specify dimension = 1 to indicate that we want to narrow along the second dimension (columns),
-	start index = -4 to start from the fourth-to-last column, and length = 4 to extract 4 columns */
-
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4); // only target attributes
-
-	// update the global variables derivatives
-	/*By assigning the result of getEnergyParamDerivWorkspace() to energyParamDerivs, 
-	the variable energyParamDerivs becomes a reference to the same map object, 
-	allowing direct access and modification of the energy parameter derivatives within the workspace.*/
-
-	// map<string, double> &energyParamDerivs = cu.getEnergyParamDerivWorkspace();
-	// if (cu.getUseDoublePrecision()) {
-	// 	double parameter_deriv;
-	// 	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
-	// 	for (int i = 0; i < numGhostParticles; i++) {
-	// 		for (int j=0; j<4; j++){
-	// 			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
-	// 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
-	// 		}
-	// 	}
-	// } else {
-	// 	float parameter_deriv;
-	// 	auto targetSignalsData = targtSignalsTensor.accessor<float, 2>();
-	// 	for (int i = 0; i < numGhostParticles; i++) {
-	// 		for (int j=0; j<4; j++) {
-	// 			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
-	// 			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
-	// 		}
-	// 	}
-	// }
 
 	double restraint_energy = 0;
 	torch::Tensor restraintForceTensor = torch::zeros({numParticles, 3}, options); // for all atoms in the system
 	if (cu.getUseDoublePrecision()) {
-
-		// An accessor is an object that allows efficient and safe access to the elements of a tensor. 
-		// It can be used to read or write values to the tensor using indexing notation. 
 
 	  auto rfaccessor = restraintForceTensor.accessor<double,2>();
 	  // compute energies and forces from restraints
@@ -394,22 +339,22 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 
 	// get forces on positions as before
 	if (includeForces) {
+
 		/*The backward() function is then called on energyTensor to compute the gradients with respect to the tensors involved in the computation.
-		For example outputTensor and reFeaturesTensor are involved in calculating teh energyTensor. We can access of these tensors by:
+		For example outputTensor and reFeaturesTensor are involved in calculating the energyTensor. We can access of these tensors by:
 		outputTensor.grad; // Gradients of energyTensor with respect to outputTensor
 		reFeaturesTensor.grad; // Gradients of energyTensor with respect to reFeaturesTensor
-
 		*/
 		energyTensor.backward();
 
 		// check if positions have gradients
 		auto forceTensor = torch::zeros_like(positionsTensor);
-		auto signalsForceTensor = torch::zeros_like(signalsTensor);
+		auto signalsGradTensor = torch::zeros_like(signalsTensor);
 
 		/*The .clone() function is used to create a new tensor with the same values as positionsTensor.grad() 
 		to ensure that it is not affected by subsequent operations.*/
 		forceTensor = - positionsTensor.grad().clone(); 
-		signalsForceTensor = - signalsTensor.grad().clone(); 
+		signalsGradTensor = signalsTensor.grad().clone(); 
 
 		positionsTensor.grad().zero_(); // clear the gradients before the next round of backpropagation or gradient computation.
 		signalsTensor.grad().zero_();
@@ -417,79 +362,28 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 		map<string, double> &energyParamDerivs = cu.getEnergyParamDerivWorkspace();
 
 		// saving signals derivatives to context
+		std::ofstream outputFile("/dickson/s2/fathinia/research/fltop/brd_restraint/wepy_outputs/CudaPytorch_outputs/data.txt" , std::ios::app);
 
 		if (cu.getUseDoublePrecision()) {
-			cout<<"I'm HEREEEEE in DOUBLE!!!!!"<<endl ;
 			double parameter_deriv;
-			auto signalsForceData = signalsForceTensor.accessor<double, 2>();
-
-			// Create a file stream for writing
-			std::ofstream outputFile("/dickson/s2/fathinia/research/fltop/brd_restraint/wepy_outputs/CudaPytorch_outputs/signalsForceData.txt");
-			// Write the contents of signalsForceData to the file
-			outputFile << "DOUBLE PRECISION" << std::endl;
-			outputFile << "signal Force data:" << std::endl;
-			for (int i = 0; i < signalsForceData.size(0); ++i) {
-				for (int j = 0; j < signalsForceData.size(1); ++j) {
-					outputFile << signalsForceData[i][j] << " ";
-				}
-				outputFile << std::endl;
-			}
-
-			outputFile << "###############################################################" <<endl;
+			auto signalsGradData = signalsGradTensor.accessor<double, 2>();
 
 			for (int i = 0; i < numGhostParticles; i++) {
 				for (int j=0; j<4; j++){
 					
-					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalsForceData[i][j];
+					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalsGradData[i][j];
 				}
 			}
-
-			outputFile << "energyParamDerivs:" << std::endl;
-			for (const auto& pair : energyParamDerivs) {
-        		outputFile << pair.first << ": " << pair.second << std::endl;
-    		}
-			outputFile << "###############################################################" <<endl;
-			outputFile.close();	
 
 		} else {
-
-	
 			float parameter_deriv;
-			auto signalsForceData = signalsForceTensor.accessor<float, 2>();
-
-			// for (int i = 0; i < signalsForceData.size(0); ++i) {
-			// 	for (int j = 0; j < signalsForceData.size(1); ++j) {
-			// 		std::cout << signalsForceData[i][j] << " ";
-			// 	}
-			// 	std::cout << std::endl;
-			// }
-
-			// Create a file stream for writing
-			std::ofstream outputFile("/dickson/s2/fathinia/research/fltop/brd_restraint/wepy_outputs/CudaPytorch_outputs/signalsForceData.txt");
-			// Write the contents of signalsForceData to the file
-			outputFile << "SINGLE PRECISION" << std::endl;
-			outputFile << "signal Force data:" << std::endl;
-			for (int i = 0; i < signalsForceData.size(0); ++i) {
-				for (int j = 0; j < signalsForceData.size(1); ++j) {
-					outputFile << signalsForceData[i][j] << " ";
-				}
-				outputFile << std::endl;
-			}
-
-			outputFile << "###############################################################" <<endl;
+			auto signalsGradData = signalsGradTensor.accessor<float, 2>();
 
 			for (int i = 0; i < numGhostParticles; i++) {
 				for (int j=0; j<4; j++) {
-					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalsForceData[i][j];
+					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalsGradData[i][j];
 				}
-			}
-
-			outputFile << "energyParamDerivs:" << std::endl;
-			for (const auto& pair : energyParamDerivs) {
-        		outputFile << pair.first << ": " << pair.second << std::endl;
-    		}
-			outputFile << "###############################################################" <<endl;
-			outputFile.close();		
+			}		
 		}
 
 		// sending atomic forces to cuda context

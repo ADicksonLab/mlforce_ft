@@ -15,7 +15,7 @@ Here we provide instructions uisng the third method, follow these instructions t
 
 1- clone MLforce from its repository
 #+begin_src bash
-  git clone git@gitlab.com:ADicksonLab/mlforce_ft.git
+  https://github.com/ADicksonLab/mlforce_ft.git
 #+end_src
 
 2- You should use conda to make a new virtual environment using the ~environment.yml~
@@ -24,13 +24,13 @@ Here we provide instructions uisng the third method, follow these instructions t
   conda activate myenv
 #+end_src
 
-3- Create ~build~ directory to install MLForce in it
+3- Create ~build~ directory in which to install MLForce
 #+begin_src bash
   cd mlforce
   mkdir build && cd build
 #+end_src
 
-4- Run the ~cmake~ command by passing the installed Libtorch path to it
+4- Run the ~cmake~ command while passing the installed Libtorch path
 #+begin_src bash
   cmake -DCMAKE_PREFIX_PATH="$(python -c 'import torch.utils; print(torch.utils.cmake_prefix_path)')" ..
 #+end_src

@@ -156,6 +156,10 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 			{(long long)targetFeatures[0].size()},
 			torch::TensorOptions().dtype(torch::kFloat64));
 
+	signalFW_tensor = torch::from_blob(signalForceWeights.data(),
+									   {static_cast<int64_t>(signalForceWeights.size())},
+									   torch::kFloat64);
+
 	if (usePeriodic) {
 	  int64_t boxVectorsDims[] = {3, 3};
 	  boxVectorsTensor = torch::zeros(boxVectorsDims);
@@ -200,6 +204,8 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	signalsTensor = torch::from_blob(globalVariables.data(),
 		{static_cast<int64_t>(numGhostParticles), 4}, torch::kFloat64);
 
+	signalsTensor.requires_grad_(true);
+
 	// Run the pytorch model and get the energy
 	auto charges = signalsTensor.index({Slice(), 0});
 	vector<torch::jit::IValue> nnInputs = {positionsTensor, charges};
@@ -214,12 +220,14 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	// outputTensor : attributes (ANI AEVs)
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 
+	torch::IntArrayRef outputTensorSize = outputTensor.size(1); // Number of features (except gp attributes)
+	torch::Tensor AEVForceWeights = torch::ones({outputTensorSize}, torch::kFloat64); 
+	torch::Tensor allForceWeights = torch::cat({ AEVForceWeights, signalFW_tensor}, 0); // all force weights (features + attributes)
+	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1); // I moved it from inside the if statement to here!
+
 	// call Hungarian algorithm to determine mapping (and loss)
 	if (assignFreq > 0) {
 	  if (step_count % assignFreq == 0) {
-
-		// concat ANI AEVS with atomic attributes [charge, sigma, epsiolon, lambda]
-		torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 
 		torch::Tensor distMatTensor = at::norm(ghFeaturesTensor.index({Slice(), None})
 											   - targetFeaturesTensor, 2, 2);
@@ -242,28 +250,10 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	// reorder the targetFeaturesTensor using the mapping
 	torch::Tensor reFeaturesTensor = targetFeaturesTensor.index({{torch::tensor(assignment)}}).clone();
 
-	// determine energy using the feature loss
-	torch::Tensor energyTensor = scale * torch::mse_loss(outputTensor,
-		reFeaturesTensor.narrow(1, 0, outputTensor.size(1))).clone();
+	torch::Tensor diff = ghFeaturesTensor - reFeaturesTensor;
+	torch::Tensor mse =  (diff * diff* allForceWeights).sum()/ (ghFeaturesTensor.size(0) * ghFeaturesTensor.size(1));
+	torch::Tensor energyTensor = scale * mse.clone();
 
-	// calculate force on the signals (first, clip out signals from the end of features) 
-	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4);
-
-	// update the global variables derivatives
-	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
-	auto targetSignalsData = targtSignalsTensor.accessor<double, 2>();
-	double parameter_deriv;
-	double param_energy = 0; 
-	for (int i = 0; i < numGhostParticles; i++) {
-		for (int j=0; j<4; j++)
-		{
-			parameter_deriv = signalForceWeights[j] * (globalVariables[i*4+j] - targetSignalsData[i][j]);
-			// to do: need to substract out the (much smaller) energy arising from target signal discrepancies in the energyTensor
-			param_energy += 0.5*(signalForceWeights[j]-1)*(globalVariables[i*4+j] - targetSignalsData[i][j])*(globalVariables[i*4+j] - targetSignalsData[i][j]);
-			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += parameter_deriv;
-		}
-	}
-	
 	// compute energies and forces from restraints
 	double restraint_energy = 0;
 	for (int i = 0; i < numRestraints; i++) {
@@ -294,25 +284,42 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 		  }
 		}
 	}
-	
+		
 	// get forces on positions as before
 	if (includeForces) {
-		energyTensor.backward();
 
-		// check if positions have gradients
-		auto forceTensor = torch::zeros_like(positionsTensor);
+	  energyTensor.backward();
 
-		forceTensor = - positionsTensor.grad();
-		positionsTensor.grad().zero_();
-		if (!(forceTensor.dtype() == torch::kFloat64))
-			forceTensor = forceTensor.to(torch::kFloat64);
+	  auto forceTensor = torch::zeros_like(positionsTensor);
+	  auto signalsGradTensor = torch::zeros_like(signalsTensor);
 
-		auto NNForce = forceTensor.accessor<double, 2>();
-		for (int i = 0; i < numGhostParticles; i++) {
-			MDForce[particleIndices[i]][0] += NNForce[i][0];
-			MDForce[particleIndices[i]][1] += NNForce[i][1];
-			MDForce[particleIndices[i]][2] += NNForce[i][2];
+	  forceTensor = - positionsTensor.grad().clone();	 
+	  signalsGradTensor = signalsTensor.grad().clone();
+
+	  signalsTensor.grad().zero_();
+	  positionsTensor.grad().zero_();
+	  
+	  if (!(signalsGradTensor.dtype() == torch::kFloat64))
+		signalsGradTensor = signalsGradTensor.to(torch::kFloat64);
+		
+	  map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
+	  auto signalsGradData = signalsGradTensor.accessor<double, 2>();
+	  for (int i = 0; i < numGhostParticles; i++) {
+		for (int j=0; j<4; j++){
+		  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalsGradData[i][j];
 		}
+	  }
+
+	  if (!(forceTensor.dtype() == torch::kFloat64))
+		forceTensor = forceTensor.to(torch::kFloat64);
+		
+	  auto NNForce = forceTensor.accessor<double, 2>();
+	  for (int i = 0; i < numGhostParticles; i++) {
+		MDForce[particleIndices[i]][0] += NNForce[i][0];
+		MDForce[particleIndices[i]][1] += NNForce[i][1];
+		MDForce[particleIndices[i]][2] += NNForce[i][2];
+	  }
 	}
-	return energyTensor.item<double>() + restraint_energy + param_energy;
+
+	return energyTensor.item<double>() + restraint_energy;
   }

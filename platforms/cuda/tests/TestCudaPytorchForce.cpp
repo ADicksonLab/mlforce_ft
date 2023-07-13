@@ -34,7 +34,7 @@ void testForce() {
 	}
 	std::vector<vector<double>> features(2, std::vector<double>(180));
 	std::vector<int> pindices={0, 1};
-	std::vector<double> weights={0.1,0.2};
+	std::vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	int assignFreq = 1;
 	std::vector<std::vector<int>> rest_idxs {{0,1}};
@@ -43,7 +43,7 @@ void testForce() {
 	double rest_k = 1000.0;
 	std::vector<int> init_a={0,1};
 	
-	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a);
+	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");

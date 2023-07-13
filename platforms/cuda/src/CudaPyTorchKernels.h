@@ -75,7 +75,7 @@ private:
     bool hasInitializedKernel;
     OpenMM::CudaContext& cu;
     torch::jit::script::Module nnModule;
-    torch::Tensor boxVectorsTensor, targetFeaturesTensor;
+    torch::Tensor boxVectorsTensor, targetFeaturesTensor, signalFW_tensor;
     std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
     std::vector<std::vector<double> > targetFeatures;

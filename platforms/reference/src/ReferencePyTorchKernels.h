@@ -77,7 +77,7 @@ public:
 private:
 	torch::jit::script::Module nnModule;
 	torch::Tensor boxVectorsTensor;
-	torch::Tensor targetFeaturesTensor;
+    torch::Tensor targetFeaturesTensor, signalFW_tensor;
 	std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
     std::vector<std::vector<double> > targetFeatures;

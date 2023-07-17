@@ -52,48 +52,53 @@ namespace PyTorchPlugin {
  */
 class ReferenceCalcPyTorchForceKernel : public CalcPyTorchForceKernel {
 public:
-	ReferenceCalcPyTorchForceKernel(std::string name, const OpenMM::Platform& platform) : CalcPyTorchForceKernel(name, platform) {
-	}
-	~ReferenceCalcPyTorchForceKernel();
-      /**
-     * Initialize the kernel.
-     *
-     * @param system         the System this kernel will be applied to
-     * @param force          the PyTorchForce this kernel will be used for
-     * @param module         the Pytorch model to use for computing forces and energy
-     */
-	void initialize(const OpenMM::System& system, const PyTorchForce& force,
-			torch::jit::script::Module nnModule);
+  ReferenceCalcPyTorchForceKernel(std::string name, const OpenMM::Platform& platform) : CalcPyTorchForceKernel(name, platform) {
+  }
+  ~ReferenceCalcPyTorchForceKernel();
+  /**
+   * Initialize the kernel.
+   *
+   * @param system         the System this kernel will be applied to
+   * @param force          the PyTorchForce this kernel will be used for
+   * @param module         the Pytorch model to use for computing forces and energy
+   */
+  void initialize(const OpenMM::System& system, const PyTorchForce& force,
+				  torch::jit::script::Module nnModule);
 
-    /**
-     * Execute the kernel to calculate the forces and/or energy.
-     *
-     * @param context        the context in which to execute this kernel
-     * @param includeForces  true if forces should be calculated
-     * @param includeEnergy  true if the energy should be calculated
-     * @return the potential energy due to the force
-     */
-	double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
+  /**
+   * Execute the kernel to calculate the forces and/or energy.
+   *
+   * @param context        the context in which to execute this kernel
+   * @param includeForces  true if forces should be calculated
+   * @param includeEnergy  true if the energy should be calculated
+   * @return the potential energy due to the force
+   */
+  double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
 private:
-	torch::jit::script::Module nnModule;
-	torch::Tensor boxVectorsTensor;
-    torch::Tensor targetFeaturesTensor, signalFW_tensor;
-	std::vector<int> particleIndices;
-    std::vector<double> signalForceWeights;
-    std::vector<std::vector<double> > targetFeatures;
-    std::vector<std::vector<int> > targetRestraintIndices;
-    std::vector<double> targetRestraintDistances;
-	std::vector<double> targetRestraintParams;
-	std::vector<double> rmax, r0sq, restraint_b;
-	double restraint_k, rmax_delta;
-	double scale;
-	bool usePeriodic;
-    HungarianAlgorithm hungAlg;
-    int step_count;
-    int assignFreq;
-	int numRestraints;
-    std::vector<int> assignment;
-	std::vector<int> reverse_assignment;
+  torch::jit::script::Module nnModule;
+  torch::Tensor boxVectorsTensor;
+  torch::Tensor targetFeaturesTensor, allForceWeights;
+  std::vector<torch::Tensor> allTargetFeatures;
+  std::vector<int> particleIndices;
+  std::vector<double> signalForceWeights;
+  std::vector<std::vector<std::vector<double> >> targetFeatures;      // lig_idx,atom_idx,feature_idx
+  
+  std::vector<int> numRestraints;
+  std::vector<std::vector<std::vector<int> >> targetRestraintIndices; // lig_idx,rest_idx,{at1,at2}
+  std::vector<std::vector<double>> targetRestraintDistances;
+  std::vector<double> targetRestraintParams;
+  std::vector<std::vector<double>> rmax, r0sq, restraint_b;
+  double restraint_k, rmax_delta;
+  double scale;
+  double lambdaMismatchPenalty;
+  bool usePeriodic;
+  HungarianAlgorithm hungAlg;
+  int step_count;
+  int assignFreq;
+  int numTargets;
+  int targetIdx;
+  std::vector<int> assignment;
+  std::vector<int> reverse_assignment;
 };
 
 } // namespace PyTorchPlugin

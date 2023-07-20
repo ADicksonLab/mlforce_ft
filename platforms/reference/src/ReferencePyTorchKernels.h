@@ -41,9 +41,9 @@
 #include <string>
 #include <cstring>
 
-using namespace std;
+using std::vector;
 using namespace torch::indexing;
-static const std::vector<string> PARAMETERNAMES={"charge_g", "sigma_g", "epsilon_g", "lambda_g"};
+static const vector<string> PARAMETERNAMES={"charge_g", "sigma_g", "epsilon_g", "lambda_g"};
 
 namespace PyTorchPlugin {
 
@@ -78,16 +78,15 @@ private:
   torch::jit::script::Module nnModule;
   torch::Tensor boxVectorsTensor;
   torch::Tensor targetFeaturesTensor, allForceWeights;
-  std::vector<torch::Tensor> allTargetFeatures;
-  std::vector<int> particleIndices;
-  std::vector<double> signalForceWeights;
-  std::vector<std::vector<std::vector<double> >> targetFeatures;      // lig_idx,atom_idx,feature_idx
+  vector<torch::Tensor> allTargetFeatures;
+  vector<int> particleIndices;
+  vector<double> signalForceWeights;
+  vector<vector<vector<double> >> targetFeatures;      // lig_idx,atom_idx,feature_idx
   
-  std::vector<int> numRestraints;
-  std::vector<std::vector<std::vector<int> >> targetRestraintIndices; // lig_idx,rest_idx,{at1,at2}
-  std::vector<std::vector<double>> targetRestraintDistances;
-  std::vector<double> targetRestraintParams;
-  std::vector<std::vector<double>> rmax, r0sq, restraint_b;
+  vector<int> numRestraints;
+  vector<vector<vector<int> >> targetRestraintIndices; // lig_idx,rest_idx,{at1,at2}
+  vector<vector<double>> targetRestraintDistances;
+  vector<vector<double>> rmax, r0sq, restraint_b;
   double restraint_k, rmax_delta;
   double scale;
   double lambdaMismatchPenalty;
@@ -97,8 +96,8 @@ private:
   int assignFreq;
   int numTargets;
   int targetIdx;
-  std::vector<int> assignment;
-  std::vector<int> reverse_assignment;
+  vector<int> assignment;
+  vector<int> reverse_assignment;
 };
 
 } // namespace PyTorchPlugin

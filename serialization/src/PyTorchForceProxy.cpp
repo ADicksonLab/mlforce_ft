@@ -35,113 +35,129 @@
 #include <string>
 #include <sstream>
 #include <iostream>
+#include <vector>
+
+using std::vector;
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
 
 PyTorchForceProxy::PyTorchForceProxy() : SerializationProxy("PyTorchForce") {
 }
 
 void PyTorchForceProxy::serialize(const void* object, SerializationNode& node) const {
-	node.setIntProperty("version", 1);
+	node.setIntProperty("version", 2);
 	const PyTorchForce& force = *reinterpret_cast<const PyTorchForce*>(object);
 	node.setStringProperty("file", force.getFile());
 	node.setDoubleProperty("scale", force.getScale());
+	node.setDoubleProperty("lambdaPenalty", force.getLambdaMismatchPenalty());
 	node.setIntProperty("assignFreq", force.getAssignFreq());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
-	std::vector<double> params = force.getRestraintParams();
-	node.setDoubleProperty("rmaxDelta", params[0]);
-	node.setDoubleProperty("restraintK", params[1]);
+	std::pair<double,double> params = force.getRestraintParams();
+	node.setDoubleProperty("rmaxDelta", params.first);
+	node.setDoubleProperty("restraintK", params.second);
 
-	std::vector<vector<double>> features = force.getTargetFeatures();
+	vector<vector<vector<double>>> features = force.getTargetFeatures();
 	SerializationNode& targetfeaturesNode = node.createChildNode("TargetFeatures");
 	for (int i = 0; i < features.size(); i++) {
-		SerializationNode&  featureNode = targetfeaturesNode.createChildNode("Particles");
-		for (int j= 0; j < features[0].size(); j++){
-			featureNode.createChildNode("features").setDoubleProperty("value", features[i][j]);
+	  SerializationNode&  targetNode = targetfeaturesNode.createChildNode("Target");
+	  for (int j= 0; j < features[i].size(); j++){
+		SerializationNode&  atomNode = targetNode.createChildNode("Atom");
+		for (int k= 0; k < features[i][j].size(); k++){
+		  atomNode.createChildNode("feature").setDoubleProperty("value", features[i][j][k]);
 		}
+	  }
 	}
 
-	std::vector<vector<int>> rest_idxs = force.getRestraintIndices();
-	SerializationNode& restraintIndicesNode = node.createChildNode("RestraintIndices");
-	for (int i = 0; i < rest_idxs.size(); i++) {
-		SerializationNode&  idxsNode = restraintIndicesNode.createChildNode("restraint");
-		for (int j= 0; j < rest_idxs[0].size(); j++){
-			idxsNode.createChildNode("idxs").setIntProperty("value", rest_idxs[i][j]);
-		}
+	auto rest_data = force.getRestraintData();
+	vector<vector<double>> targetRestraintDistances = rest_data.first;
+	vector<vector<vector<int> >> targetRestraintIndices = rest_data.second;
+	
+	SerializationNode& restraintDataNode = node.createChildNode("RestraintData");
+	for (int i = 0; i < targetRestraintDistances.size(); i++) {
+	  SerializationNode&  targetNode = restraintDataNode.createChildNode("Target");
+	  for (int j= 0; j < targetRestraintDistances[i].size(); j++){
+		SerializationNode&  restNode = targetNode.createChildNode("Restraint");
+		restNode.setDoubleProperty("distance",targetRestraintDistances[i][j]);
+		restNode.setIntProperty("idx1",targetRestraintIndices[i][j][0]);
+		restNode.setIntProperty("idx2",targetRestraintIndices[i][j][1]);
+	  }
 	}
 
-	std::vector<int>  ParticleIndices = force.getParticleIndices();
+	vector<int>  ParticleIndices = force.getParticleIndices();
 	SerializationNode& ParticleIndicesNode = node.createChildNode("ParticleIndices");
 	for (int i = 0; i < ParticleIndices.size(); i++) {
 		 ParticleIndicesNode.createChildNode("Index").setIntProperty("value", ParticleIndices[i]);
 	}
 
-	std::vector<int>  initialAssignment = force.getInitialAssignment();
+	std::pair<int,vector<int>> data = force.getInitialAssignment();
+	int initial_idx = data.first;
+	vector<int> initialAssignment = data.second;
+	node.setIntProperty("initialIdx", initial_idx);
+
 	SerializationNode& initialAssignmentNode = node.createChildNode("InitialAssignment");
 	for (int i = 0; i < initialAssignment.size(); i++) {
-		 initialAssignmentNode.createChildNode("assignment").setIntProperty("value", initialAssignment[i]);
+	  initialAssignmentNode.createChildNode("assignment").setIntProperty("value", initialAssignment[i]);
 	}
 	
-	std::vector<double>  signalForceWeights = force.getSignalForceWeights();
+	vector<double>  signalForceWeights = force.getSignalForceWeights();
 	SerializationNode&  signalForceWeightsNode = node.createChildNode("SignalForceWeights");
 	for (int i = 0; i < signalForceWeights.size(); i++) {
 	   signalForceWeightsNode.createChildNode("Weight").setDoubleProperty("value", signalForceWeights[i]);
 	}
 
-	std::vector<double>  rest_dists = force.getRestraintDistances();
-	SerializationNode&  restraintDistancesNode = node.createChildNode("RestraintDistances");
-	for (int i = 0; i < rest_dists.size(); i++) {
-	   restraintDistancesNode.createChildNode("Distance").setDoubleProperty("value", rest_dists[i]);
-	}
 }
 
 void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
-	if (node.getIntProperty("version") != 1)
+	if (node.getIntProperty("version") != 2)
 	throw OpenMMException("Unsupported version number");
 
+	vector<vector<vector<double>>> targetfeatures;
 	const SerializationNode& targetfeaturesNode = node.getChildNode("TargetFeatures");
-	int	numTargetParticles = targetfeaturesNode.getChildren().size();
+	auto targetnodes = targetfeaturesNode.getChildren();
+	int numTargets = targetnodes.size();
+	for (int i=0; i<numTargets; i++){
+	  auto atomnodes = targetnodes[i].getChildren();
+	  int numAtoms = atomnodes.size();
 
-	std::vector<std::vector<double>> targetfeatures(numTargetParticles);
-	for (int i=0; i<numTargetParticles; i++){
-		const SerializationNode& featureNode = targetfeaturesNode.getChildren()[i];
-		for (auto &feature:featureNode.getChildren()){
-			targetfeatures[i].push_back(feature.getDoubleProperty("value"));
+	  vector<vector<double>> tmp_tgt_features(numAtoms);
+	  for (int j=0; j<numAtoms; j++){
+		for (auto &feature:atomnodes[j].getChildren()){
+		  tmp_tgt_features[j].push_back(feature.getDoubleProperty("value"));
 		}
+	  }
+	  targetfeatures.push_back(tmp_tgt_features);	
+	}
+	
+
+	vector<vector<vector<int>>> restraint_idxs(numTargets);
+	vector<vector<double>> restraint_dists(numTargets);
+
+	const SerializationNode& restraintDataNode = node.getChildNode("RestraintData");
+	auto restraintTgtNodes = restraintDataNode.getChildren();
+	assert(numTargets == restraintTgtNodes.size());
+	for (int i=0; i<numTargets; i++){
+	  for (auto &rest:restraintTgtNodes[i].getChildren()){
+		vector<int> idxs {rest.getIntProperty("idx1"), rest.getIntProperty("idx2")};
+		restraint_idxs[i].push_back(idxs);
+		restraint_dists[i].push_back(rest.getDoubleProperty("distance"));
+	  }
 	}
 
-	const SerializationNode& restraintIndicesNode = node.getChildNode("RestraintIndices");
-	int	numRestraints = restraintIndicesNode.getChildren().size();
-	std::vector<std::vector<int>> restraint_idxs(numRestraints);
-	for (int i=0; i<numRestraints; i++){
-		const SerializationNode& idxsNode = restraintIndicesNode.getChildren()[i];
-		for (auto &idx:idxsNode.getChildren()){
-			restraint_idxs[i].push_back(idx.getIntProperty("value"));
-		}
-	}
-
-	std::vector<double> restraint_dists;
-	const SerializationNode& restraintDistancesNode = node.getChildNode("RestraintDistances");
-	for (auto &distance:restraintDistancesNode.getChildren()){
-		restraint_dists.push_back(distance.getDoubleProperty("value"));
-	}
-
-	std::vector<int> indices;
+	vector<int> indices;
 	const SerializationNode& partilceindicesNode = node.getChildNode("ParticleIndices");
 	for (auto & index: partilceindicesNode.getChildren()) {
 		indices.push_back(index.getIntProperty("value"));
 	}
 
-	std::vector<int> initialAssignment;
+	vector<int> initialAssignment;
 	const SerializationNode& initialAssignmentNode = node.getChildNode("InitialAssignment");
 	for (auto & assignment: initialAssignmentNode.getChildren()) {
 		initialAssignment.push_back(assignment.getIntProperty("value"));
 	}
 	
-	std::vector<double> signalForceWeights;
+	vector<double> signalForceWeights;
 	const SerializationNode& signalForceWeightsNode = node.getChildNode("SignalForceWeights");
 	for (auto &weight:signalForceWeightsNode.getChildren()){
 		signalForceWeights.push_back(weight.getDoubleProperty("value"));
@@ -150,7 +166,7 @@ void* PyTorchForceProxy::deserialize(const SerializationNode& node) const {
 	PyTorchForce* force = new PyTorchForce(node.getStringProperty("file"),  targetfeatures,
 										   indices, signalForceWeights, node.getDoubleProperty("scale"), node.getIntProperty("assignFreq"),
 										   restraint_idxs, restraint_dists, node.getDoubleProperty("rmaxDelta"), node.getDoubleProperty("restraintK"),
-										   initialAssignment);
+										   initialAssignment, node.getIntProperty("initialIdx"), node.getDoubleProperty("lambdaPenalty"));
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));
 

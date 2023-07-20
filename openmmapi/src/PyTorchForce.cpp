@@ -34,23 +34,26 @@
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/AssertionUtilities.h"
 #include <vector>
-using std::vector;
+#include <string>
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
+using std::vector;
+using std::string;
 
-PyTorchForce::PyTorchForce(const std::string& file,
-						   std::vector<std::vector<double> > targetFeatures,
-						   const std::vector<int> particleIndices,
-						   const std::vector<double> signalForceWeights,
+PyTorchForce::PyTorchForce(const string& file,
+						   vector<vector<vector<double>>> targetFeatures,
+						   const vector<int> particleIndices,
+						   const vector<double> signalForceWeights,
 						   const double scale,
 						   const int assignFreq,
-						   std::vector<std::vector<int> > restraintIndices, 
-						   const std::vector<double> restraintDistances, 
+						   const vector<vector<vector<int>>> restraintIndices, 
+						   const vector<vector<double>> restraintDistances, 
 						   const double rmaxDelta, 
 						   const double restraintK,
-						   const std::vector<int> initialAssignment) :
+						   const vector<int> initialAssignment,
+						   const int initialTargetIdx,
+						   const double lambdaMismatchPenalty) :
 
   file(file),
   targetFeatures(targetFeatures),
@@ -63,7 +66,9 @@ PyTorchForce::PyTorchForce(const std::string& file,
   restraintDistances(restraintDistances),
   rmaxDelta(rmaxDelta),
   restraintK(restraintK),
-  initialAssignment(initialAssignment)
+  initialAssignment(initialAssignment),
+  initialTargetIdx(initialTargetIdx),
+  lambdaMismatchPenalty(lambdaMismatchPenalty)
   {
 }
 
@@ -73,39 +78,42 @@ const string& PyTorchForce::getFile() const {
 const double PyTorchForce::getScale() const {
   return scale;
 }
+
+const double PyTorchForce::getLambdaMismatchPenalty() const {
+  return lambdaMismatchPenalty;
+}
+
 const int PyTorchForce::getAssignFreq() const {
   return assignFreq;
 }
 
-const std::vector<int> PyTorchForce::getInitialAssignment() const {
-  return initialAssignment;
+const std::pair<int,vector<int>> PyTorchForce::getInitialAssignment() const {
+  std::pair<int,vector<int>> data(initialTargetIdx, initialAssignment);
+  return data;
 }
 
-const std::vector<std::vector<int> > PyTorchForce::getRestraintIndices() const{
-  return restraintIndices;
+const std::pair<vector<vector<double>>,vector<vector<vector<int>>>> PyTorchForce::getRestraintData() const{
+  std::pair<vector<vector<double>>,vector<vector<vector<int>>>> data(restraintDistances,restraintIndices);
+  return data;
 }
 
-const std::vector<double> PyTorchForce::getRestraintDistances() const{
-  return restraintDistances;
+const std::pair<double,double> PyTorchForce::getRestraintParams() const{
+  std::pair<double,double> params = {rmaxDelta, restraintK};
+  return params;	
 }
 
-const std::vector<double> PyTorchForce::getRestraintParams() const{
-	std::vector<double> params = {rmaxDelta, restraintK};
-  	return params;	
-}
-
-const std::vector<std::vector<double> > PyTorchForce::getTargetFeatures() const{
+const vector<vector<vector<double>>> PyTorchForce::getTargetFeatures() const{
   return targetFeatures;
 }
 
-const std::vector<int> PyTorchForce::getParticleIndices() const{
+const vector<int> PyTorchForce::getParticleIndices() const{
   return particleIndices;
 }
 
-
-const std::vector<double> PyTorchForce::getSignalForceWeights() const{
+const vector<double> PyTorchForce::getSignalForceWeights() const{
   return signalForceWeights;
 }
+
 ForceImpl* PyTorchForce::createImpl() const {
   return new PyTorchForceImpl(*this);
 }
@@ -117,7 +125,6 @@ void PyTorchForce::setUsesPeriodicBoundaryConditions(bool periodic) {
 bool PyTorchForce::usesPeriodicBoundaryConditions() const {
 	return usePeriodic;
 }
-
 
 int PyTorchForce::addGlobalParameter(const string& name, double defaultValue) {
 	globalParameters.push_back(GlobalParameterInfo(name, defaultValue));

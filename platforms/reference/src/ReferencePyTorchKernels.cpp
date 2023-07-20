@@ -1,4 +1,3 @@
-
 #include "ReferencePyTorchKernels.h"
 #include "PyTorchForce.h"
 #include "Hungarian.h"
@@ -9,64 +8,7 @@
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
-
-std::pair<int,std::vector<int>> getTarget(torch::Tensor ghFeatures, torch::Tensor lambdas, std::vector<torch::Tensor> targetFeatures, double lambda_mismatch_penalty) {
-
-    int nTargets = targetFeatures.size(0);
-    int nGhostAtoms = ghFeatures.size(0);
-
-	// sizes of input tensors
-	//
-	// ghFeatures : n x nf 
-	// targetFeatures[i]  : m x nf
-	// distMatTensor : n x m
-	// lambdas : n
-
-	std::vector<double> costs(nTargets, 0.0);
-	std::vector<std::vector<int>> allAssignments(nTargets);
-	HungarianAlgorithm hungAlg;
-
-	for (int i=0; i < nTargets; i++) {
-	    int nTargetAtoms = targetFeatures[i].size(0);
-
-		assert(nGhostAtoms >= nTargetAtoms);
-	
-		torch::Tensor lambdaExpand = at::tile(lambdas.unsqueeze(1),{1,nTargetAtoms});   // expand to shape (n,m)
-		torch::Tensor ghExpand = at::tile(ghFeatures.unsqueeze(1),{1,nTargetAtoms,1});  // expand to shape (n,m,nf)
-		torch::Tensor targetExpand = at::tile(targetFeatures[i],{nGhostAtoms,1,1});     // expand to shape (n,m,nf)
-		torch::Tensor diff = ghExpand - targetExpand;
-
-		// distmat[a][b] is the distance from ghost atom a to target atom b
-		torch::Tensor distmat = (diff*diff).sum(2)*lambdaExpand;
-	
-		// pad with zeros
-		at::Tensor distmat_nn = at::constant_pad_nd(distmat, {0, nGhostAtoms-nTargetAtoms}, 0); // pad to shape (n,n)
-		
-		// target lambdas (n,n) (second dimension is different)
-		torch::Tensor lambda_T = torch::constant_pad_nd(torch::ones({nGhostAtoms,nTargetAtoms}), {0,nGhostAtoms-nTargetAtoms}, 0);
-
-		// ghost lambdas (n,n) (first dimension is different)
-		torch::Tensor lambda_gh = at::tile(lambdas.unsqueeze(1),{1,nGhostAtoms});
-	
-		// add lambdaMismatchPenalty*(lambda[i] - lambda_T[j])**2
-		distmat_nn += lambda_mismatch_penalty*torch::pow(lambda_T-lambda_gh,2);
-	
-		//convert it to a 2d vector
-		std::vector<std::vector<double> > distMatrix = tensorTo2DVec(distmat_nn.data_ptr<double>(),
-																	 nGhostAtoms,nGhostAtoms);
-	
-		allAssignments[i] = hungAlg.Solve(distMatrix);
-		at::Tensor assignment_tensor = at::tensor(allAssignments[i], at::kLong);
-		costs[i] = (at::one_hot(assignment_tensor, nGhostAtoms) * distmat_nn).sum().item<double>();
-	}
-
-	// get the index corresponding to the minimum cost
-	std::vector<int>::iterator result = std::min_element(costs.begin(), costs.end());
-	int bestIndex = std::distance(costs.begin(), result);
-	return {bestIndex, allAssignments[bestIndex]};
-
-}
+using std::vector;
 
 /**
  * @brief
@@ -117,10 +59,10 @@ static map<string, double>& extractEnergyParameterDerivatives(ContextImpl& conte
  *
  * @param context
  * @param numParticles
- * @return std::vector<double>
+ * @return vector<double>
  */
-std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
-	std::vector<double> signals;
+vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
+	vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
 		for (std::size_t j=0; j < PARAMETERNAMES.size(); j++) {
@@ -136,12 +78,12 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  * @param ptr
  * @param nRows
  * @param nCols
- * @return std::vector<std::vector<double> >
+ * @return vector<vector<double> >
  */
-std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
-    std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
+vector<vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+    vector<vector<double> > distMat(nRows, vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
-		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
+		vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
 		distMat[i] = vec;
 	}
 	return distMat;
@@ -151,17 +93,74 @@ std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCol
  * @brief
  *
  * @param assignment
- * @return std::vector<int>
+ * @return vector<int>
  */
-std::vector<int> getReverseAssignment(std::vector<int> assignment) {
+vector<int> getReverseAssignment(vector<int> assignment) {
 	int n = assignment.size();
-	std::vector<int> rev_assignment(n, -1);
+	vector<int> rev_assignment(n, -1);
 	for (int i=0; i<n; i++) {
 		if ((assignment[i] >= 0) && (assignment[i] < n)) {
 		  rev_assignment[assignment[i]] = i;
 		}
 	}
 	return rev_assignment;
+}
+
+std::pair<int,vector<int>> getTarget(torch::Tensor ghFeatures, torch::Tensor lambdas, vector<torch::Tensor> targetFeatures, double lambda_mismatch_penalty) {
+
+    int nTargets = targetFeatures.size();
+    int nGhostAtoms = ghFeatures.size(0);
+
+	// sizes of input tensors
+	//
+	// ghFeatures : n x nf 
+	// targetFeatures[i]  : m x (nf+1)
+	// distMatTensor : n x m
+	// lambdas : n
+
+	vector<double> costs(nTargets, 0.0);
+	vector<vector<int>> allAssignments(nTargets);
+	HungarianAlgorithm hungAlg;
+
+	for (int i=0; i < nTargets; i++) {
+	    int nTargetAtoms = targetFeatures[i].size(0);
+
+		assert(nGhostAtoms >= nTargetAtoms);
+	
+		torch::Tensor lambdaExpand = at::tile(lambdas.unsqueeze(1),{1,nTargetAtoms});   // expand to shape (n,m)
+		torch::Tensor ghExpand = at::tile(ghFeatures.unsqueeze(1),{1,nTargetAtoms,1});  // expand to shape (n,m,nf)
+		torch::Tensor targetExpand = at::tile(targetFeatures[i].index({Slice(),Slice(0,-1)}),{nGhostAtoms,1,1});     // expand to shape (n,m,nf)
+		torch::Tensor diff = ghExpand - targetExpand;
+
+		// distmat[a][b] is the distance from ghost atom a to target atom b
+		torch::Tensor distmat = (diff*diff).sum(2)*lambdaExpand;
+	
+		// pad with zeros
+		at::Tensor distmat_nn = at::constant_pad_nd(distmat, {0, nGhostAtoms-nTargetAtoms}, 0); // pad to shape (n,n)
+		
+		// target lambdas (n,n) (second dimension is different)
+		torch::Tensor lambda_T = torch::constant_pad_nd(torch::ones({nGhostAtoms,nTargetAtoms}), {0,nGhostAtoms-nTargetAtoms}, 0);
+
+		// ghost lambdas (n,n) (first dimension is different)
+		torch::Tensor lambda_gh = at::tile(lambdas.unsqueeze(1),{1,nGhostAtoms});
+	
+		// add lambdaMismatchPenalty*(lambda[i] - lambda_T[j])**2
+		distmat_nn += lambda_mismatch_penalty*torch::pow(lambda_T-lambda_gh,2);
+	
+		//convert it to a 2d vector
+		vector<vector<double> > distMatrix = tensorTo2DVec(distmat_nn.data_ptr<double>(),
+																	 nGhostAtoms,nGhostAtoms);
+	
+		allAssignments[i] = hungAlg.Solve(distMatrix);
+		at::Tensor assignment_tensor = at::tensor(allAssignments[i], at::kLong);
+		costs[i] = (at::one_hot(assignment_tensor, nGhostAtoms) * distmat_nn).sum().item<double>();
+	}
+
+	// get the index corresponding to the minimum cost
+	int bestIndex = std::distance(costs.begin(), std::min_element(costs.begin(), costs.end()));
+
+	return {bestIndex, allAssignments[bestIndex]};
+
 }
 
 
@@ -185,25 +184,34 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
-	targetRestraintIndices = force.getRestraintIndices();
-	targetRestraintDistances = force.getRestraintDistances();
-	targetRestraintParams = force.getRestraintParams();
-	lambdaMismatchPenalty = force.getLambdaMismatchPenalty();
-	rmax_delta = targetRestraintParams[0];
-	restraint_k = targetRestraintParams[1];
 
-	targetIdx = force.getInitialTargetIdx();
-	assignment = force.getInitialAssignment();
+	auto targetRestraintData = force.getRestraintData();
+	targetRestraintDistances = targetRestraintData.first;
+	targetRestraintIndices = targetRestraintData.second;
+	
+	std::pair<double,double> targetRestraintParams = force.getRestraintParams();
+	rmax_delta = targetRestraintParams.first;
+	restraint_k = targetRestraintParams.second;
+	
+	lambdaMismatchPenalty = force.getLambdaMismatchPenalty();
+
+	std::pair<int,vector<int>> tmp = force.getInitialAssignment();
+	targetIdx = tmp.first;
+	assignment = tmp.second;
+	
 	reverse_assignment = getReverseAssignment(assignment);
 	
 	numTargets = targetRestraintDistances.size();
+	assert(numTargets == targetRestraintIndices.size());
+	
 	for (int t_idx = 0; t_idx < numTargets; t_idx++) {
-  	    numRestraints.push_back(targetRestraintDistances[t_idx].size());
-		std::vector<double> tmp_r0sq,tmp_rmax,tmp_restraint_b;
+  	    int tmp_num_rest = std::min(targetRestraintDistances[t_idx].size(),targetRestraintIndices[t_idx].size());
+		numRestraints.push_back(tmp_num_rest);
+		vector<double> tmp_r0sq,tmp_rmax,tmp_restraint_b;
 		for (int i = 0; i < numRestraints[t_idx]; i++) {
 		    tmp_r0sq.push_back(targetRestraintDistances[t_idx][i]*targetRestraintDistances[t_idx][i]);
 			tmp_rmax.push_back(targetRestraintDistances[t_idx][i] + rmax_delta);
-			tmp_restraint_b.push_back(0.5*restraint_k*(r0sq[i] - rmax[i]*rmax[i]));
+			tmp_restraint_b.push_back(0.5*restraint_k*(tmp_r0sq[i] - tmp_rmax[i]*tmp_rmax[i]));
 		}
 		r0sq.push_back(tmp_r0sq);
 		rmax.push_back(tmp_rmax);
@@ -234,7 +242,6 @@ void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyT
 	// subtract 4 from targetFeatures size to get ani features size
 	int nAniFeatures  = targetFeatures[0][0].size() - 4; // Number of features (except gp attributes)
 	allForceWeights = torch::cat({torch::ones({nAniFeatures}, torch::kFloat64), signalFW_tensor}, 0); // all force weights (features + attributes)
-
 	
 	if (usePeriodic) {
 	  int64_t boxVectorsDims[] = {3, 3};
@@ -274,7 +281,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	}
 
 	torch::Tensor signalsTensor = torch::zeros({numGhostParticles, 4}, torch::kFloat64);
-	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
+	vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
 	signalsTensor = torch::from_blob(globalVariables.data(),
 		{static_cast<int64_t>(numGhostParticles), 4}, torch::kFloat64);
 
@@ -302,7 +309,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	  if (step_count % assignFreq == 0) {
 
 		// when passing to getTarget, include the lambdas separately
-		std::pair<int,std::vector<int>> result = getTarget(ghFeaturesTensor.index({Slice(),Slice(0,-1)}),lambdas,lambdaMismatchPenalty);
+		std::pair<int,vector<int>> result = getTarget(ghFeaturesTensor.index({Slice(),Slice(0,-1)}),lambdas,allTargetFeatures,lambdaMismatchPenalty);
 		targetIdx = result.first;
 		assignment = result.second;
 
@@ -320,20 +327,24 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 	step_count += 1;
 
 	// reorder the targetFeaturesTensor using the mapping
-	int nTargetAtoms = targetFeaturesTensor[targetIdx].size(0);
+	int nTargetAtoms = allTargetFeatures[targetIdx].size(0);
 
 	// get difference between re_gh and target (multiply by allForceWeights and lambda)
 	torch::Tensor reGhFeaturesTensor = ghFeaturesTensor.index({{torch::tensor(reverse_assignment)}});
 	auto reGhLambdasTensor = lambdas.index({{torch::tensor(reverse_assignment)}});
 
 	// don't include lambda in the diff
-	torch::Tensor diff = reGhFeaturesTensor.index({Slice(0,nTargetAtoms),Slice(0,-1)}) - targetFeaturesTensor[targetIdx].index({Slice(),Slice(0,-1)});
+	torch::Tensor diff = reGhFeaturesTensor.index({Slice(0,nTargetAtoms),Slice(0,-1)}) - allTargetFeatures[targetIdx].index({Slice(),Slice(0,-1)});
 	
 	// add lambda terms for unassigned atoms
 	auto unassigned_lambdas = lambdas.index({{torch::gt(torch::tensor(assignment),nTargetAtoms-1)}});
-	torch::Tensor energy_tmp = (diff*diff*allForceWeights*reGhLambdasTensor.index({Slice(0,nTargetAtoms)})).sum() +
+
+	torch::Tensor aFWexpand_nolambda = at::tile(allForceWeights.index({Slice(0,-1)}),{nTargetAtoms,1});
+	torch::Tensor diff_sum = diff*diff*aFWexpand_nolambda;  // shape is (nTargetAtoms,nFeat-1)
+	
+	torch::Tensor energy_tmp = (diff_sum.sum(1)*reGhLambdasTensor.index({Slice(0,nTargetAtoms)})).sum() +
 	  (unassigned_lambdas*unassigned_lambdas*lambdaMismatchPenalty).sum();
-	  
+
 	torch::Tensor energyTensor = scale * energy_tmp.clone() / (ghFeaturesTensor.size(0) * ghFeaturesTensor.size(1));
 
 	// compute energies and forces from restraints

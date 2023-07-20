@@ -48,7 +48,9 @@
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
+using std::vector;
+using std::map;
+using std::string;
 
 extern "C" OPENMM_EXPORT void registerPyTorchReferenceKernelFactories();
 
@@ -60,8 +62,8 @@ void testForceFixedAssignments() {
 	vector<Vec3> positions(numParticles);
 	OpenMM_SFMT::SFMT sfmt;
 	init_gen_rand(0, sfmt);
-	std::vector<int> pindices;
-	std::vector<int> init_a;
+	vector<int> pindices;
+	vector<int> init_a;
 
 	for (int i = 0; i < numParticles; i++) {
 	  system.addParticle(1.0);
@@ -71,17 +73,19 @@ void testForceFixedAssignments() {
 	}
 
 	// Initialize target features as zero vectors
-	std::vector<vector<double>> features(numParticles, std::vector<double>(180));
+	vector<vector<vector<double>>> features(1, vector<vector<double>>(numParticles,vector<double>(180)));
 	
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	int assignFreq = -1;
-	std::vector<std::vector<int>> rest_idxs {{0,1}};
-	std::vector<double> rest_dists {0.1};
+	vector<vector<vector<int>>> rest_idxs {{{0,1}}};
+	vector<vector<double>> rest_dists {{0.1}};
 	double rest_rmax_delta = 0.5;
 	double rest_k = 0;
+	int targetIdx=0;
+	double lambda_pen=10.0;
 	
-	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a);
+	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a, targetIdx, lambda_pen);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -110,6 +114,7 @@ void testForceFixedAssignments() {
 	  cnb_force->addGlobalParameter(varname, -1);
 
 	}
+	cnb_force->addGlobalParameter("targetIdx",0);
 	system.addForce(cnb_force);
 
 	// Compute the forces and energy.
@@ -130,12 +135,12 @@ void testForceFixedAssignments() {
 	
 }
 
-void fill_row(std::vector<double> & row)
+void fill_row(vector<double> & row)
 {
   std::generate(row.begin(), row.end(), [](){ return double(rand())/RAND_MAX; }); 
 }
 
-void fill_matrix(std::vector<std::vector<double>> & mat)
+void fill_matrix(vector<vector<double>> & mat)
 {
   for_each(mat.begin(), mat.end(), fill_row);
 }
@@ -148,8 +153,8 @@ void testForceVariableAssignments() {
 	vector<Vec3> positions(numParticles);
 	OpenMM_SFMT::SFMT sfmt;
 	init_gen_rand(0, sfmt);
-	std::vector<int> pindices;
-	std::vector<int> init_a;
+	vector<int> pindices;
+	vector<int> init_a;
 
 	for (int i = 0; i < numParticles; i++) {
 	  system.addParticle(1.0);
@@ -159,18 +164,22 @@ void testForceVariableAssignments() {
 	}
 
 	// Initialize target features as zero vectors
-	std::vector<vector<double>> features(numParticles, std::vector<double>(180));
-	fill_matrix(features);
+	vector<vector<vector<double>>> features;
+	vector<vector<double>> feat1(numParticles,vector<double>(180));
+	fill_matrix(feat1);
+	features.push_back(feat1);
 	
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	int assignFreq = 1;
-	std::vector<std::vector<int>> rest_idxs {{0,1}};
-	std::vector<double> rest_dists {0.1};
+	vector<vector<vector<int>>> rest_idxs {{{0,1}}};
+	vector<vector<double>> rest_dists {{0.1}};
 	double rest_rmax_delta = 0.5;
 	double rest_k = 0;
+	int targetIdx = 0;
+	double lambda_pen= 0.0;
 	
-	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a);
+	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a, targetIdx, lambda_pen);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -199,6 +208,7 @@ void testForceVariableAssignments() {
 	  cnb_force->addGlobalParameter(varname, -1);
 
 	}
+	cnb_force->addGlobalParameter("targetIdx",0);
 	system.addForce(cnb_force);
 
 	// Compute the forces and energy.
@@ -212,7 +222,7 @@ void testForceVariableAssignments() {
 	// Read out the assignments, assert they are equal to init_a
 
 	map<string,double> props = context.getParameters();
-	std::vector<int> new_a;
+	vector<int> new_a;
 	
 	for (int i = 0; i < numParticles; i++) {
 	  n = sprintf(varname, "assignment_g%d", i);

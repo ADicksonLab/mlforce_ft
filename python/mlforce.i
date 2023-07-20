@@ -16,8 +16,10 @@
 namespace std {
   %template(vectori) vector<int>;
   %template(vectord) vector<double>;
-  %template(vectordd) vector< vector<double> >;
-  %template(vectorii) vector< vector<int> >;
+  %template(vectordd) vector<vector<double>>;
+  %template(vectorii) vector<vector<int>>;
+  %template(vectorddd) vector<vector<vector<double>>>;
+  %template(vectoriii) vector<vector<vector<int>>>;
   };
 
 namespace PyTorchPlugin {
@@ -25,22 +27,24 @@ namespace PyTorchPlugin {
 class PyTorchForce : public OpenMM::Force {
 public:
 	PyTorchForce(const std::string& file,
-				 std::vector<std::vector<double> > targetFeatures,
+				 std::vector<std::vector<std::vector<double>>> targetFeatures,
 				 const std::vector<int> particleIndices,
 				 const std::vector<double> signalForceWeights,
 				 double scale,
 				 int assignFreq,
-				 std::vector<std::vector<int> > restraintIndices,
-				 const std::vector<double> restraintDistances,
+				 const std::vector<std::vector<std::vector<int>>> restraintIndices,
+				 std::vector<std::vector<double>> restraintDistances,
 				 double rmaxDelta,
 				 double restraintK,
-				 const std::vector<int> initialAssignment
+				 const std::vector<int> initialAssignment,
+				 const int initialTargetIdx,
+				 const double lambdaMismatchPenalty
 				 );
 
 	const std::string& getFile() const;
 	const double getScale() const;
 	const int getAssignFreq() const;
-	const std::vector<std::vector<double> > getTargetFeatures() const;
+	const std::vector<std::vector<std::vector<double>>> getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	void setUsesPeriodicBoundaryConditions(bool periodic);
@@ -51,10 +55,10 @@ public:
 	void setGlobalParameterName(int index, const std::string& name);
 	double getGlobalParameterDefaultValue(int index) const;
 	void setGlobalParameterDefaultValue(int index, double defaultValue);
-	const std::vector<std::vector<int> > getRestraintIndices() const;
-	const std::vector<double> getRestraintDistances() const;
-	const std::vector<double> getRestraintParams() const;
-	const std::vector<int> getInitialAssignment() const;
+	const std::pair<std::vector<std::vector<double>>,std::vector<std::vector<std::vector<int>>>> getRestraintData() const;
+	const std::pair<double,double> getRestraintParams() const;
+	const std::pair<int,vector<int>> getInitialAssignment() const;
+	const double getLambdaMismatchPenalty() const;
 };
 
 }

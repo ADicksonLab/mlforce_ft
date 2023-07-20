@@ -36,7 +36,9 @@
 #include "openmm/Force.h"
 #include <string>
 #include "internal/windowsExportPyTorch.h"
-#include<vector>
+#include <vector>
+
+using std::vector;
 
 namespace PyTorchPlugin {
 
@@ -52,16 +54,19 @@ public:
 	 *
 	 * @param file   the path to the file containing the network
 	 */
-  PyTorchForce(const std::string& file, std::vector<std::vector<double> > targetFeatures,
+  PyTorchForce(const std::string& file, std::vector<std::vector<std::vector<double>>> targetFeatures,
 			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, int assignFreq,
-			   std::vector<std::vector<int> > restraintIndices, std::vector<double> restraintDistances, double rmaxDelta, double restraintK, std::vector<int> initialAssignment);
+			   std::vector<std::vector<std::vector<int>>> restraintIndices, std::vector<std::vector<double>> restraintDistances,
+			   double rmaxDelta, double restraintK,
+			   std::vector<int> initialAssignment, int initialTargetIdx, double lambdaMismatchPenalty);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
-	const std::string& getFile() const;
+    const std::string& getFile() const;
 	const double getScale() const;
+	const double getLambdaMismatchPenalty() const;
 	const int getAssignFreq() const;
-	const std::vector<std::vector<double> > getTargetFeatures() const;
+	const std::vector<std::vector<std::vector<double>>> getTargetFeatures() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	/**
@@ -70,28 +75,22 @@ public:
 	 * 
 	 * @return initialAssignment
 	 */
-	const std::vector<int> getInitialAssignment() const;
+	const std::pair<int,vector<int>> getInitialAssignment() const;
 	/**
-	 * Get the atomic indices associated with each restraint.  
+	 * Get the bond distances and atomic indices associated with each restraint.  
 	 * 
-	 * @return restraintIndices
+	 * @return restraintData
 	 */
-	const std::vector<std::vector<int> > getRestraintIndices() const;
+	const std::pair<std::vector<std::vector<double>>, std::vector<std::vector<std::vector<int>>>> getRestraintData() const;
 	/**
-	 * Get the bond distances of the restraints.  
-	 * 
-	 * @return restraintDistances
-	 */
-	const std::vector<double> getRestraintDistances() const;
-	/**
-	 * Get the parameters that are common to all atomic restraints.  This returns a vector
+	 * Get the parameters that are common to all atomic restraints.  This returns a pair
 	 * with two elements: the rmaxDelta and the restraintK.  rmaxDelta is equal to rmax - r0
 	 * and is used to compute rmax.  rmax is the distance beyond which the restraint potential
 	 * converts to linear. restraintK is the force constant of the harmonic restraint.
 	 * 
 	 * @return {rmax_delta, rest_k}
 	 */
-	const std::vector<double> getRestraintParams() const;
+	const std::pair<double,double> getRestraintParams() const;
 	/**
 	 * Set whether this force makes use of periodic boundary conditions.  If this is set
 	 * to true, the TensorFlow graph must include a 3x3 tensor called "boxvectors", which
@@ -150,14 +149,14 @@ protected:
 private:
 	class GlobalParameterInfo;
 	std::string file;
-	std::vector<std::vector<double> > targetFeatures;
+	std::vector<std::vector<std::vector<double>>> targetFeatures;
 	std::vector<int> particleIndices;
 	std::vector<int> initialAssignment;
 	std::vector<double> signalForceWeights;
-	double scale;
-	int assignFreq;
-	std::vector<std::vector<int> > restraintIndices;
-	std::vector<double> restraintDistances;
+	double scale, lambdaMismatchPenalty;
+	int assignFreq, initialTargetIdx;
+	std::vector<std::vector<std::vector<int>>> restraintIndices;
+	std::vector<std::vector<double>> restraintDistances;
 	double rmaxDelta;
 	double restraintK;
 	bool usePeriodic;

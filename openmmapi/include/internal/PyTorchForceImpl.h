@@ -71,7 +71,7 @@ private:
 	const PyTorchForce& owner;
 	OpenMM::Kernel kernel;
 	torch::jit::script::Module nnModule;
-	std::vector<std::vector<double>> targetFeatures;
+	std::vector<std::vector<std::vector<double>>> targetFeatures;
 	std::vector<int> particleIndicies;
 };
 

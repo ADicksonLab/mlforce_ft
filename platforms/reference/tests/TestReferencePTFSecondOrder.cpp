@@ -20,7 +20,7 @@
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
+using std::vector;
 
 extern "C" OPENMM_EXPORT void registerPyTorchReferenceKernelFactories();
 
@@ -46,6 +46,7 @@ CustomNonbondedForce* new_cnb_force() {
   cnb_force->addGlobalParameter("lambda_g1", 1);
   cnb_force->addGlobalParameter("assignment_g0", 0);
   cnb_force->addGlobalParameter("assignment_g1", 1);
+  cnb_force->addGlobalParameter("targetIdx", 0);
 
   return cnb_force;
 }
@@ -63,23 +64,26 @@ void testForceEmptyVsOff() {
 	  system2.addParticle(1.0);
 	  positions[i] = Vec3(genrand_real2(sfmt), genrand_real2(sfmt), genrand_real2(sfmt))*10;
 	}
-	std::vector<vector<double>> features(2, std::vector<double>(180));
-	std::vector<int> pindices={0, 1};
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+	vector<vector<vector<double>>> features(1, vector<vector<double>>(numParticles,vector<double>(180)));
+
+	vector<int> pindices={0, 1};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	
 	int assignFreq = 1;
-	std::vector<std::vector<int>> rest_idxs1 {{0,1}};
-	std::vector<std::vector<int>> rest_idxs2 {{}};
-	std::vector<double> rest_dists1 {1.0};
-	std::vector<double> rest_dists2 {};
+	vector<vector<vector<int>>> rest_idxs1 {{{0,1}}};
+	vector<vector<vector<int>>> rest_idxs2 {{{}}};
+	vector<vector<double>> rest_dists1 {{1.0}};
+	vector<vector<double>> rest_dists2 {{}};
 	double rest_rmax_delta = 0.5;
 	double rest_k1 = 0.0;
 	double rest_k2 = 1000.0;
-	std::vector<int> init_a={0,1};
+	vector<int> init_a={0,1};
+	int target_idx=0;
+	double lambda_pen=10.0;
 
-	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a);
-	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a);
+	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a, target_idx, lambda_pen);
+	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a, target_idx, lambda_pen);
 	system1.addForce(force1);
 	system2.addForce(force2);
 
@@ -118,24 +122,26 @@ void testForceOffVsMinimum() {
 	}
 	positions[0] = Vec3(0.0,0.0,0.0);
 	positions[1] = Vec3(0.0,0.0,0.5);
-	
-	std::vector<vector<double>> features(2, std::vector<double>(180));
-	std::vector<int> pindices={0, 1};
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+
+	vector<vector<vector<double>>> features(1, vector<vector<double>>(numParticles,vector<double>(180)));
+	vector<int> pindices={0, 1};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	
 	int assignFreq = 1;
-	std::vector<std::vector<int>> rest_idxs1 {{0,1}};
-	std::vector<std::vector<int>> rest_idxs2 {{0,1}};
-	std::vector<double> rest_dists1 {1.0};
-	std::vector<double> rest_dists2 {0.5};
+	vector<vector<vector<int>>> rest_idxs1 {{{0,1}}};
+	vector<vector<vector<int>>> rest_idxs2 {{{0,1}}};
+	vector<vector<double>> rest_dists1 {{1.0}};
+	vector<vector<double>> rest_dists2 {{0.5}};
 	double rest_rmax_delta = 0.5;
 	double rest_k1 = 0.0;
 	double rest_k2 = 1000.0;
-	std::vector<int> init_a={0,1};
+	vector<int> init_a={0,1};
+	int targetIdx=0;
+	double lambda_pen=10.0;
 	
-	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a);
-	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a);
+	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a, targetIdx, lambda_pen);
+	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a, targetIdx, lambda_pen);
 	system1.addForce(force1);
 	system2.addForce(force2);
 
@@ -175,23 +181,25 @@ void testRestEnergyAndForce() {
 	positions[0] = Vec3(0.0,0.0,0.0);
 	positions[1] = Vec3(0.0,0.0,1.5);
 	
-	std::vector<vector<double>> features(2, std::vector<double>(180));
-	std::vector<int> pindices={0, 1};
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+	vector<vector<vector<double>>> features(1, vector<vector<double>>(numParticles,vector<double>(180)));
+	vector<int> pindices={0, 1};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	
 	int assignFreq = -1;
-	std::vector<std::vector<int>> rest_idxs1 {{0,1}};
-	std::vector<std::vector<int>> rest_idxs2 {{0,1}};
-	std::vector<double> rest_dists1 {1.0};
-	std::vector<double> rest_dists2 {1.0};
+	vector<vector<vector<int>>> rest_idxs1 {{{0,1}}};
+	vector<vector<vector<int>>> rest_idxs2 {{{0,1}}};
+	vector<vector<double>> rest_dists1 {{1.0}};
+	vector<vector<double>> rest_dists2 {{1.0}};
 	double rest_rmax_delta = 1.0;
 	double rest_k1 = 0.0;    // system1 is off
 	double rest_k2 = 1000.0; // system2 is on
-	std::vector<int> init_a={0,1};
+	vector<int> init_a={0,1};
+	int targetIdx=0;
+	double lambda_pen=10.0;
 	
-	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a);
-	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a);
+	PyTorchForce* force1 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs1, rest_dists1, rest_rmax_delta, rest_k1, init_a, targetIdx, lambda_pen);
+	PyTorchForce* force2 = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs2, rest_dists2, rest_rmax_delta, rest_k2, init_a, targetIdx, lambda_pen);
 	system1.addForce(force1);
 	system2.addForce(force2);
 

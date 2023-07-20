@@ -16,7 +16,7 @@
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
-using namespace std;
+using std::vector;
 
 extern "C" OPENMM_EXPORT void registerPyTorchReferenceKernelFactories();
 
@@ -32,18 +32,20 @@ void testForce() {
 	  system.addParticle(1.0);
 	  positions[i] = Vec3(genrand_real2(sfmt), genrand_real2(sfmt), genrand_real2(sfmt))*10;
 	}
-	std::vector<vector<double>> features(2, std::vector<double>(180));
-	std::vector<int> pindices={0, 1};
-	std::vector<double> sf_weights={10000,10000,10000,10000};
+	vector<vector<vector<double>>> features(1, vector<vector<double>>(2,vector<double>(180)));
+	vector<int> pindices={0, 1};
+	vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
 	int assignFreq = 1;
-	std::vector<std::vector<int>> rest_idxs {{0,1}};
-	std::vector<double> rest_dists {0.1};
+	vector<vector<vector<int>>> rest_idxs {{{0,1}}};
+	vector<vector<double>> rest_dists {{0.1}};
 	double rest_rmax_delta = 0.5;
 	double rest_k = 1000.0;
-	std::vector<int> init_a={0,1};
+	vector<int> init_a={0,1};
+	int init_target=0;
+	double lambda_pen = 10.0;
 	
-	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a);
+	PyTorchForce* force = new PyTorchForce("tests/ani_model_cpu.pt", features, pindices, sf_weights, scale, assignFreq, rest_idxs, rest_dists, rest_rmax_delta, rest_k, init_a, init_target, lambda_pen);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -64,6 +66,7 @@ void testForce() {
 	cnb_force->addGlobalParameter("lambda_g1", 1);
 	cnb_force->addGlobalParameter("assignment_g0", 0);
 	cnb_force->addGlobalParameter("assignment_g1", 1);
+	cnb_force->addGlobalParameter("targetIdx", 0);
 
 	system.addForce(cnb_force);
 

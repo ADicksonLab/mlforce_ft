@@ -331,19 +331,17 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 
 	// get difference between re_gh and target (multiply by allForceWeights and lambda)
 	torch::Tensor reGhFeaturesTensor = ghFeaturesTensor.index({{torch::tensor(reverse_assignment)}});
-	auto reGhLambdasTensor = lambdas.index({{torch::tensor(reverse_assignment)}});
 
-	// don't include lambda in the diff
-	torch::Tensor diff = reGhFeaturesTensor.index({Slice(0,nTargetAtoms),Slice(0,-1)}) - allTargetFeatures[targetIdx].index({Slice(),Slice(0,-1)});
+	// do include lambda in the diff
+	torch::Tensor diff = reGhFeaturesTensor.index({Slice(0,nTargetAtoms),Slice()}) - allTargetFeatures[targetIdx];
 	
 	// add lambda terms for unassigned atoms
 	auto unassigned_lambdas = lambdas.index({{torch::gt(torch::tensor(assignment),nTargetAtoms-1)}});
 
-	torch::Tensor aFWexpand_nolambda = at::tile(allForceWeights.index({Slice(0,-1)}),{nTargetAtoms,1});
-	torch::Tensor diff_sum = diff*diff*aFWexpand_nolambda;  // shape is (nTargetAtoms,nFeat-1)
+	torch::Tensor aFWexpand = at::tile(allForceWeights,{nTargetAtoms,1});
+	torch::Tensor diff_sum = diff*diff*aFWexpand;  // shape is (nTargetAtoms,nFeat)
 	
-	torch::Tensor energy_tmp = (diff_sum.sum(1)*reGhLambdasTensor.index({Slice(0,nTargetAtoms)})).sum() +
-	  (unassigned_lambdas*unassigned_lambdas*lambdaMismatchPenalty).sum();
+	torch::Tensor energy_tmp = diff_sum.sum() + (unassigned_lambdas*unassigned_lambdas*lambdaMismatchPenalty).sum();
 
 	torch::Tensor energyTensor = scale * energy_tmp.clone() / (ghFeaturesTensor.size(0) * ghFeaturesTensor.size(1));
 

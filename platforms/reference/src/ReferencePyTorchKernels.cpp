@@ -213,6 +213,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 
 	// outputTensor : attributes (ANI AEVs)
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
+	
 
 	// call Hungarian algorithm to determine mapping (and loss)
 	if (assignFreq > 0) {

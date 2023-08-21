@@ -7,3 +7,7 @@
 *.dcd
 *#*#
 build
+CMakeCache.txt
+CMakeFiles/
+debug.txt
+

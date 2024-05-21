@@ -16,11 +16,12 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
     int argc = 0;
     vector<char**> argv = {NULL};
     for (int i = 0; i < Platform::getNumPlatforms(); i++) {
-	Platform& platform = Platform::getPlatform(i);
-	if (dynamic_cast<ReferencePlatform*>(&platform) != NULL) {
+	  Platform& platform = Platform::getPlatform(i);
+	  if (dynamic_cast<ReferencePlatform*>(&platform) != NULL) {
 	    ReferencePyTorchKernelFactory* factory = new ReferencePyTorchKernelFactory();
 	    platform.registerKernelFactory(CalcPyTorchForceKernel::Name(), factory);
-	}
+		platform.registerKernelFactory(CalcPyTorchForceE2EKernel::Name(), factory);
+	  }
     }
 }
 
@@ -32,5 +33,8 @@ KernelImpl* ReferencePyTorchKernelFactory::createKernelImpl(std::string name, co
     ReferencePlatform::PlatformData& data = *static_cast<ReferencePlatform::PlatformData*>(context.getPlatformData());
     if (name == CalcPyTorchForceKernel::Name())
 	return new ReferenceCalcPyTorchForceKernel(name, platform);
+	if (name == CalcPyTorchForceE2EKernel::Name())
+	return new ReferenceCalcPyTorchForceE2EKernel(name, platform);
+
     throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
 }

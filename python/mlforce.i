@@ -57,4 +57,25 @@ public:
 	const std::vector<int> getInitialAssignment() const;
 };
 
+class PyTorchForceE2E : public OpenMM::Force {
+public:
+	PyTorchForceE2E(const std::string& file,
+					const std::vector<int> particleIndices,
+					const std::vector<double> signalForceWeights,
+					double scale);
+
+	const std::string& getFile() const;
+	const double getScale() const;
+	const std::vector<int> getParticleIndices() const;
+	const std::vector<double> getSignalForceWeights() const;
+	void setUsesPeriodicBoundaryConditions(bool periodic);
+	bool usesPeriodicBoundaryConditions() const;
+	int getNumGlobalParameters() const;
+	int addGlobalParameter(const std::string& name, double defaultValue);
+	const std::string& getGlobalParameterName(int index) const;
+	void setGlobalParameterName(int index, const std::string& name);
+	double getGlobalParameterDefaultValue(int index) const;
+	void setGlobalParameterDefaultValue(int index, double defaultValue);
+};
+
 }

@@ -28,4 +28,5 @@ using namespace OpenMM;
 
 extern "C" OPENMM_EXPORT_PYTORCH void registerPyTorchSerializationProxies() {
     SerializationProxy::registerProxy(typeid(PyTorchForce), new PyTorchForceProxy());
+	SerializationProxy::registerProxy(typeid(PyTorchForceE2E), new PyTorchForceE2EProxy());
 }

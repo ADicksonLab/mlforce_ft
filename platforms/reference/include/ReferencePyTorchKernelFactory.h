@@ -13,7 +13,7 @@ class ReferencePyTorchKernelFactory : public KernelFactory {
 public:
     KernelImpl* createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const;
 };
-
+  
 } // namespace OpenMM
 
 #endif /*OPENMM_REFERENCE_Py_Torch_KERNEL_FACTORY_H_*/

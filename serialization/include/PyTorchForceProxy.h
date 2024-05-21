@@ -17,6 +17,14 @@ public:
     void* deserialize(const SerializationNode& node) const;
 };
 
+class OPENMM_EXPORT_PYTORCH PyTorchForceE2EProxy : public SerializationProxy {
+public:
+    PyTorchForceE2EProxy();
+    void serialize(const void* object, SerializationNode& node) const;
+    void* deserialize(const SerializationNode& node) const;
+};
+
+  
 } // namespace OpenMM
 
 #endif /*OPENMM_NEURAL_NETWORK_FORCE_PROXY_H_*/

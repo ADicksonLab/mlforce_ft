@@ -98,7 +98,6 @@ private:
 	double scale;
 	bool usePeriodic;
 };
-
   
 } // namespace PyTorchPlugin
 

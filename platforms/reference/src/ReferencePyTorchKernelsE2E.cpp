@@ -51,6 +51,7 @@ static map<string, double>& extractEnergyParameterDerivatives(ContextImpl& conte
 	return *((map<string, double>*) data->energyParameterDerivatives);
 }
 
+
 /**
  * @brief
  *
@@ -58,7 +59,7 @@ static map<string, double>& extractEnergyParameterDerivatives(ContextImpl& conte
  * @param numParticles
  * @return std::vector<double>
  */
-std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
+static std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
@@ -68,6 +69,7 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
 	}
 	return signals;
 }
+
 
 ReferenceCalcPyTorchForceE2EKernel::~ReferenceCalcPyTorchForceE2EKernel() {
 }
@@ -80,7 +82,7 @@ ReferenceCalcPyTorchForceE2EKernel::~ReferenceCalcPyTorchForceE2EKernel() {
  * @param force
  * @param nnModule
  */
-void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module nnModule) {
+void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTorchForceE2E& force, torch::jit::script::Module nnModule) {
 	this->nnModule = nnModule;
 	nnModule.to(torch::kCPU);
 	nnModule.eval();
@@ -95,7 +97,7 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	if (usePeriodic) {
 	  int64_t boxVectorsDims[] = {3, 3};
 	  boxVectorsTensor = torch::zeros(boxVectorsDims);
-	  boxVectorsTensor = boxVectorsTensor.to(torch::kFloat64);
+	  boxVectorsTensor = boxVectorsTensor.to(torch::kFloat32);
 	}
 
 	// prepare all-to-all edge tensors
@@ -110,9 +112,9 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	}
 	int num_edges = edges.size();
 	
-	edge_idxs = torch::from_blob(edges, {num_edges, 2}, torch::int).T;
-	edge_attrs = torch::zeros({num_edges, 1}, torch::kFloat64);
-	batch = torch::zeros({numGhostParticles}, torch::int);
+	edge_idxs = at::transpose(torch::from_blob(edges.data(), {static_cast<int64_t>(num_edges), 2}, torch::TensorOptions().dtype(torch::kLong)),0,1);
+	edge_attrs = torch::zeros({num_edges, 1}, torch::TensorOptions().dtype(torch::kFloat32));
+	batch = torch::zeros({numGhostParticles}, torch::TensorOptions().dtype(torch::kLong));
 
 }
 
@@ -146,13 +148,17 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		positions[i][2] = MDPositions[particleIndices[i]][2];
 	}
 
+	positionsTensor = positionsTensor.to(torch::kFloat32);
+	
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
 
 	torch::Tensor signalsTensor = torch::from_blob(globalVariables.data(), {static_cast<int64_t>(numGhostParticles), 4},
 												   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat64));
 
+	signalsTensor = signalsTensor.to(torch::kFloat32);
+
 	// Run the pytorch model and get the energy
-	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_index, edge_attr, batch};
+	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
 
 	// outputTensor : energy
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();

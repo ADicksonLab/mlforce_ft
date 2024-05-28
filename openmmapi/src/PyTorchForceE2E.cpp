@@ -18,7 +18,7 @@ PyTorchForceE2E::PyTorchForceE2E(const std::string& file,
   particleIndices(particleIndices),
   signalForceWeights(signalForceWeights),
   scale(scale),
-  usePeriodic(false),
+  usePeriodic(false)
   {
 }
 
@@ -47,31 +47,31 @@ bool PyTorchForceE2E::usesPeriodicBoundaryConditions() const {
 }
 
 
-int PyTorchForce::addGlobalParameter(const string& name, double defaultValue) {
+int PyTorchForceE2E::addGlobalParameter(const string& name, double defaultValue) {
 	globalParameters.push_back(GlobalParameterInfo(name, defaultValue));
 	return globalParameters.size()-1;
 }
 
-int PyTorchForce::getNumGlobalParameters() const {
+int PyTorchForceE2E::getNumGlobalParameters() const {
 	return globalParameters.size();
 }
 
-const string& PyTorchForce::getGlobalParameterName(int index) const {
+const string& PyTorchForceE2E::getGlobalParameterName(int index) const {
 	ASSERT_VALID_INDEX(index, globalParameters);
 	return globalParameters[index].name;
 }
 
-void PyTorchForce::setGlobalParameterName(int index, const string& name) {
+void PyTorchForceE2E::setGlobalParameterName(int index, const string& name) {
 	ASSERT_VALID_INDEX(index, globalParameters);
 	globalParameters[index].name = name;
 }
 
-double PyTorchForce::getGlobalParameterDefaultValue(int index) const {
+double PyTorchForceE2E::getGlobalParameterDefaultValue(int index) const {
 	ASSERT_VALID_INDEX(index, globalParameters);
 	return globalParameters[index].defaultValue;
 }
 
-void PyTorchForce::setGlobalParameterDefaultValue(int index, double defaultValue) {
+void PyTorchForceE2E::setGlobalParameterDefaultValue(int index, double defaultValue) {
 	ASSERT_VALID_INDEX(index, globalParameters);
 	globalParameters[index].defaultValue = defaultValue;
 }

@@ -5,20 +5,16 @@ This is an [[http://openmm.org][OpenMM]] plugin that makes possible the [[https:
 used for creating external forces.
 
 * Installation
-There are three ways to install dependencies of this package.
-- Installing [[ https://github.com/pytorch/pytorch#from-source][PyTorch]] from source and use the libtorch from it.
-- Installing [[https://pytorch.or][LibTorch]] from its binary CXX ABI files or build it from
-  its source following instruction at [[https://github.com/pytorch/pytorch/blob/master/docs/libtorch.rst][here]].
-- Installing all packages from Conda-forge channel via conda.
+Before building this package you should install [[https://pytorch.or][LibTorch]] from its binary CXX ABI files or build it from its source following instructions [[https://github.com/pytorch/pytorch/blob/master/docs/libtorch.rst][here]].
 
-Here we provide instructions uisng the third method, follow these instructions to install MLForce
+Once libtorch is installed, MLForce can be installed as follows:
 
 1- clone MLforce from its repository
 #+begin_src bash
   git clone git@gitlab.com:ADicksonLab/mlforce_ft.git
 #+end_src
 
-2- You should use conda to make a new virtual environment using the ~environment.yml~
+2- You should use conda (or mamba) to make a new virtual environment using the ~environment.yml~
 #+begin_src bash
   conda env create -n myenv -f environment.yml
   conda activate myenv
@@ -29,6 +25,40 @@ Here we provide instructions uisng the third method, follow these instructions t
   cd mlforce
   mkdir build && cd build
 #+end_src
+
+4- Run `ccmake`:
+#+begin_src bash                                                                                                                                              
+  ccmake ..
+#+end_src 
+
+5- Press "Configure".  (Do not worry if it produces an error message about not being able to find PyTorch.)
+
+6- Set `OPENMM_DIR` to point to the directory where OpenMM is installed.  This is needed to locate
+the OpenMM header files and libraries.  If you are unsure of what directory this is, the following
+script will print it out.
+
+```python
+from simtk import openmm
+import os
+print(os.path.dirname(openmm.version.openmm_library_path))
+```
+
+7- Set `PYTORCH_DIR` to point to the directory where you installed the LibTorch.
+
+6. Set `CMAKE_INSTALL_PREFIX` to the directory where the plugin should be installed.  Usually,
+this will be the same as `OPENMM_DIR`, so the plugin will be added to your OpenMM installation.
+
+7. If you plan to build the OpenCL platform, make sure that `OPENCL_INCLUDE_DIR` and
+`OPENCL_LIBRARY` are set correctly, and that `NN_BUILD_OPENCL_LIB` is selected.
+
+8. If you plan to build the CUDA platform, make sure that `CUDA_TOOLKIT_ROOT_DIR` is set correctly
+and that `NN_BUILD_CUDA_LIB` is selected.
+
+9. Press "Configure" again if necessary, then press "Generate".
+
+10. Use the build system you selected to build and install the plugin.  For example, if you
+selected Unix Makefiles, type `make install` to install the plugin, and `make PythonInstall` to
+install the Python wrapper.
 
 4- Run the ~cmake~ command by passing the installed Libtorch path to it
 #+begin_src bash

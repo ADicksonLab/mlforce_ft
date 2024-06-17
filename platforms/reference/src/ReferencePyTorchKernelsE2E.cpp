@@ -112,8 +112,8 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	}
 	int num_edges = edges.size();
 
-	torch::Tensor edge_idxs = torch::empty({static_cast<int64_t>(num_edges), 2},
-										   torch::TensorOptions().dtype(torch::kInt64));
+	edge_idxs = torch::empty({static_cast<int64_t>(num_edges), 2},
+							 torch::TensorOptions().dtype(torch::kInt64));
 	auto edge_acc = edge_idxs.accessor<int64_t, 2>();
 
 	//Copy indices to the tensor
@@ -145,10 +145,10 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 	
 	
 	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 3},
-												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat64));
+												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
 
 
-	auto positions = positionsTensor.accessor<double, 2>();
+	auto positions = positionsTensor.accessor<float, 2>();
 
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
@@ -157,14 +157,10 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		positions[i][2] = MDPositions[particleIndices[i]][2];
 	}
 
-	positionsTensor = positionsTensor.to(torch::kFloat32);
-	
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
 
 	torch::Tensor signalsTensor = torch::from_blob(globalVariables.data(), {static_cast<int64_t>(numGhostParticles), 4},
-												   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat64));
-
-	signalsTensor = signalsTensor.to(torch::kFloat32);
+												   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
 
 	// Run the pytorch model and get the energy
 	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
@@ -188,7 +184,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		signalForceTensor = - signalsTensor.grad();
 
 		positionsTensor.grad().zero_();
-		signalForceTensor.grad().zero_();
+		signalsTensor.grad().zero_();
 		
 		if (!(forceTensor.dtype() == torch::kFloat64))
 			forceTensor = forceTensor.to(torch::kFloat64);

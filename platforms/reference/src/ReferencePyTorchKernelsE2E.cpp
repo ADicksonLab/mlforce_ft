@@ -112,14 +112,14 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	}
 	int num_edges = edges.size();
 
-	edge_idxs = torch::empty({static_cast<int64_t>(num_edges), 2},
+	edge_idxs = torch::empty({2, static_cast<int64_t>(num_edges)},
 							 torch::TensorOptions().dtype(torch::kInt64));
 	auto edge_acc = edge_idxs.accessor<int64_t, 2>();
 
 	//Copy indices to the tensor
 	for (int i = 0; i < num_edges; i++) {
-	  edge_acc[i][0] = edges[i][0];
-	  edge_acc[i][1] = edges[i][1];
+	  edge_acc[0][i] = edges[i][0];
+	  edge_acc[1][i] = edges[i][1];
 	}
 
 	edge_attrs = torch::zeros({num_edges, 1}, torch::TensorOptions().dtype(torch::kFloat32));

@@ -26,70 +26,35 @@ Once libtorch is installed, MLForce can be installed as follows:
   mkdir build && cd build
 #+end_src
 
-4- Run `ccmake`:
-#+begin_src bash                                                                                                                                              
-  ccmake ..
+4- Set the CUDACXX environment variable to point to your local nvcc compiler, e.g.:
+#+begin_src bash
+  export CUDACXX="/usr/local/cuda/bin/nvcc"
+  #+end_src
+  
+5- Run `cmake`, including the directory where you installed libtorch:
+#+begin_src bash
+  cmake -DCMAKE_PREFIX_PATH="/path/to/libtorch" ..
 #+end_src 
 
-5- Press "Configure".  (Do not worry if it produces an error message about not being able to find PyTorch.)
-
-6- Set `OPENMM_DIR` to point to the directory where OpenMM is installed.  This is needed to locate
-the OpenMM header files and libraries.  If you are unsure of what directory this is, the following
-script will print it out.
-
-```python
-from simtk import openmm
-import os
-print(os.path.dirname(openmm.version.openmm_library_path))
-```
-
-7- Set `PYTORCH_DIR` to point to the directory where you installed the LibTorch.
-
-6. Set `CMAKE_INSTALL_PREFIX` to the directory where the plugin should be installed.  Usually,
-this will be the same as `OPENMM_DIR`, so the plugin will be added to your OpenMM installation.
-
-7. If you plan to build the OpenCL platform, make sure that `OPENCL_INCLUDE_DIR` and
-`OPENCL_LIBRARY` are set correctly, and that `NN_BUILD_OPENCL_LIB` is selected.
-
-8. If you plan to build the CUDA platform, make sure that `CUDA_TOOLKIT_ROOT_DIR` is set correctly
-and that `NN_BUILD_CUDA_LIB` is selected.
-
-9. Press "Configure" again if necessary, then press "Generate".
-
-10. Use the build system you selected to build and install the plugin.  For example, if you
-selected Unix Makefiles, type `make install` to install the plugin, and `make PythonInstall` to
-install the Python wrapper.
-
-4- Run the ~cmake~ command by passing the installed Libtorch path to it
-#+begin_src bash
-  cmake -DCMAKE_PREFIX_PATH="$(python -c 'import torch.utils; print(torch.utils.cmake_prefix_path)')" ..
-#+end_src
-
-5- Run the ~ccmake~ command to set up the configuration for bulding MLForce
-
+6- Run `ccmake`:
 #+begin_src bash
   ccmake -i ..
-#+end_src
-6-Make sure that the path to ~OPENMM_DIR~ and ~CMAKE_INSTALL_PREFIX~ set to
-the OpenMM path you installed
+#+end_src 
 
-7- If you want to build the CUDA platform set the ~NN_BUILD_CUDA_LIB~
-to ~on~ and if you want to build the OpenCL platform set the
-~NN_BUILD_OPENCL_LIB~ to ~on~ as well
+7- Set `OPENMM_DIR` and `CMAKE_INSTALL_PREFIX` to point to the directory where OpenMM is installed.
+In this case, it should point to the directory for your conda/mamba environment, e.g.: `/your/home/dir/micromamba/envs/myenv`
 
-8- Press "c" to configure the plugin then press "g" to generate it
+8- Set `PYTORCH_DIR` to point to the directory where you installed the LibTorch.
 
-9- Install the MLForce plugin
-#+begin_src bash
-  make install
-#+end_src
+9- If you plan to build the CUDA platform, make sure that `CUDA_TOOLKIT_ROOT_DIR` is set correctly
+and that `NN_BUILD_CUDA_LIB` is selected.
 
-10- Install the Python wrapper
-#+begin_src bash
-  make PythonInstall
-#+end_src
+10- Press "Configure", then press "Generate".
 
-11- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~
+11- Type `make install` to install the plugin, and `make PythonInstall` to
+install the Python wrapper.
+
+12- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~
 #+begin_src bash
 export LIBTORCH_LIBRARY_PATH="path/to/libtorch/lib"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBTORCH_LIBRARY_PATH"

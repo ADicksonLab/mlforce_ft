@@ -2,9 +2,7 @@ channels:
   - conda-forge
 dependencies:
   - cmake=3.19
-  - swig
-  - h5py
-  - mdtraj
-  - numpy
+  - swig=3
   - cython
   - openmm=8.1
+  

@@ -2,20 +2,20 @@ cmake_minimum_required(VERSION 3.5)
 project(MLForcePlugin)
 
 find_package(Torch REQUIRED)
+
 set(OPENMM_DIR "/usr/local/openmm" CACHE PATH "Where OpenMM is installed")
 include_directories("${OPENMM_DIR}/include")
 link_directories("${OPENMM_DIR}/lib" "${OPENMM_DIR}/lib/plugins")
 
 set(LIBTORCH_DIR "/usr/local" CACHE PATH "Where LIBTORCH is installed")
-find_package(Torch REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Set RPATH settings to avoid cycles in the constraint graph
-set(CMAKE_SKIP_RPATH FALSE)
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${OPENMM_DIR}/lib;${OPENMM_DIR}/lib/plugins")
+## Set RPATH settings to avoid cycles in the constraint graph
+#set(CMAKE_SKIP_RPATH FALSE)
+#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+#set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+#set(CMAKE_INSTALL_RPATH "${OPENMM_DIR}/lib;${OPENMM_DIR}/lib/plugins")
 
 if(APPLE)
     set(CMAKE_INSTALL_NAME_DIR "@rpath")

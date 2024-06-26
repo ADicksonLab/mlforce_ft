@@ -55,7 +55,7 @@ private:
 	std::vector<double> targetRestraintParams;
 	std::vector<double> rmax, r0sq, restraint_b;
 	double restraint_k, rmax_delta;
-	double scale;
+    double scale, offset;
 	bool usePeriodic;
     HungarianAlgorithm hungAlg;
     int step_count;
@@ -95,7 +95,7 @@ private:
     torch::Tensor edge_idxs, edge_attrs, batch;
 	std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
-	double scale;
+    double scale, offset;
 	bool usePeriodic;
 };
   

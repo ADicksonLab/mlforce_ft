@@ -88,6 +88,7 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	nnModule.eval();
 
 	scale = force.getScale();
+	offset = force.getOffset();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
 	
@@ -159,14 +160,23 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
 
-	torch::Tensor signalsTensor = torch::from_blob(globalVariables.data(), {static_cast<int64_t>(numGhostParticles), 4},
-												   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
+	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4},
+												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
 
+	auto signals = signalsTensor.accessor<float, 2>();
+
+	//Copy positions to the tensor
+	for (int i = 0; i < numGhostParticles; i++) {
+	  for (int j = 0; j < 4; j++) {
+		signals[i][j] = globalVariables[4*i + j];
+	  }
+	}
+	
 	// Run the pytorch model and get the energy
 	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
 
 	// outputTensor : energy
-	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
+	torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
 	
 
 	// update the global variables derivatives
@@ -178,29 +188,30 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 		// check if positions have gradients
 		auto forceTensor = torch::zeros_like(positionsTensor);
-		auto signalForceTensor = torch::zeros_like(signalsTensor);
+		auto signalDerivTensor = torch::zeros_like(signalsTensor);
 
 		forceTensor = - positionsTensor.grad();
-		signalForceTensor = - signalsTensor.grad();
+		signalDerivTensor = signalsTensor.grad().clone().detach();
 
 		positionsTensor.grad().zero_();
 		signalsTensor.grad().zero_();
-		
+
 		if (!(forceTensor.dtype() == torch::kFloat64))
 			forceTensor = forceTensor.to(torch::kFloat64);
 
-		if (!(signalForceTensor.dtype() == torch::kFloat64))
-			signalForceTensor = signalForceTensor.to(torch::kFloat64);
-		
+		if (!(signalDerivTensor.dtype() == torch::kFloat64))
+			signalDerivTensor = signalDerivTensor.to(torch::kFloat64);
+
 		auto NNForce = forceTensor.accessor<double, 2>();
-		auto NNSignalForce = signalForceTensor.accessor<double, 2>();
+		auto NNSignalDeriv = signalDerivTensor.accessor<double, 2>();
+
 		for (int i = 0; i < numGhostParticles; i++) {
 			MDForce[particleIndices[i]][0] += NNForce[i][0];
 			MDForce[particleIndices[i]][1] += NNForce[i][1];
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 
 			for (int j=0; j<3; j++) { // ignore lambda for now
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalForce[i][j]*signalForceWeights[j];
+			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
 			}
 			
 		}

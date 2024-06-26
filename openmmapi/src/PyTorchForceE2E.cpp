@@ -12,12 +12,14 @@ using namespace std;
 PyTorchForceE2E::PyTorchForceE2E(const std::string& file,
 								 const std::vector<int> particleIndices,
 								 const std::vector<double> signalForceWeights,
-								 const double scale):
+								 const double scale,
+								 const double offset):
 
   file(file),
   particleIndices(particleIndices),
   signalForceWeights(signalForceWeights),
   scale(scale),
+  offset(offset),
   usePeriodic(false)
   {
 }
@@ -28,6 +30,10 @@ const string& PyTorchForceE2E::getFile() const {
 const double PyTorchForceE2E::getScale() const {
   return scale;
 }
+const double PyTorchForceE2E::getOffset() const {
+  return offset;
+}
+
 const std::vector<int> PyTorchForceE2E::getParticleIndices() const{
   return particleIndices;
 }

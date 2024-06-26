@@ -62,10 +62,12 @@ public:
 	PyTorchForceE2E(const std::string& file,
 					const std::vector<int> particleIndices,
 					const std::vector<double> signalForceWeights,
-					double scale);
+					double scale,
+					double offset);
 
 	const std::string& getFile() const;
 	const double getScale() const;
+	const double getOffset() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	void setUsesPeriodicBoundaryConditions(bool periodic);

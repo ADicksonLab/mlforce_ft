@@ -14,9 +14,10 @@ PyTorchForceE2EProxy::PyTorchForceE2EProxy() : SerializationProxy("PyTorchForceE
 
 void PyTorchForceE2EProxy::serialize(const void* object, SerializationNode& node) const {
 	node.setIntProperty("version", 1);
-	const PyTorchForce& force = *reinterpret_cast<const PyTorchForce*>(object);
+	const PyTorchForceE2E& force = *reinterpret_cast<const PyTorchForceE2E*>(object);
 	node.setStringProperty("file", force.getFile());
 	node.setDoubleProperty("scale", force.getScale());
+	node.setDoubleProperty("offset", force.getOffset());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
 
@@ -52,7 +53,8 @@ void* PyTorchForceE2EProxy::deserialize(const SerializationNode& node) const {
 	PyTorchForceE2E* force = new PyTorchForceE2E(node.getStringProperty("file"),
 												 indices,
 												 signalForceWeights,
-												 node.getDoubleProperty("scale"));
+												 node.getDoubleProperty("scale"),
+												 node.getDoubleProperty("offset"));
 												 
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));

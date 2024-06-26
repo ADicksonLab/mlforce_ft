@@ -161,12 +161,13 @@ public:
 	 * @param file   the path to the file containing the network
 	 */
   PyTorchForceE2E(const std::string& file, 
-			   std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale);
+				  std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, double offset);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
 	const std::string& getFile() const;
 	const double getScale() const;
+	const double getOffset() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	void setUsesPeriodicBoundaryConditions(bool periodic);
@@ -224,7 +225,7 @@ private:
 	std::string file;
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
-	double scale;
+	double scale, offset;
 	bool usePeriodic;
 	std::vector<GlobalParameterInfo> globalParameters;
 };

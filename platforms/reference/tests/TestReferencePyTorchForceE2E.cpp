@@ -34,10 +34,10 @@ void testForce() {
 	}
 	std::vector<int> pindices={0, 1, 2};
 	std::vector<double> weights={10000,10000,10000,10000};
-	double scale = 10.0;
+	double scale = 3084.0973724679484;
+	double offset = -1421.63869806774;
 	
-	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script.pt", pindices, weights, scale);
-	//PyTorchForceE2E* force = new PyTorchForceE2E("tests/best_model_InvariantMPNNModel.pt", pindices, weights, scale);
+	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script.pt", pindices, weights, scale, offset);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");

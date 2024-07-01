@@ -237,8 +237,8 @@ int main(int argc, char* argv[]) {
 	if (argc > 1)
 	  Platform::getPlatformByName("CUDA").setPropertyDefaultValue("Precision", string(argv[1]));
 
-	testForceEmptyVsOff(); // expensive and redundant with reference tests
-	testForceOffVsMinimum(); // expensive and redundant with reference tests
+	//testForceEmptyVsOff(); // expensive and redundant with reference tests
+	//testForceOffVsMinimum(); // expensive and redundant with reference tests
 	testRestEnergyAndForce();
 	}
 	catch(const std::exception& e) {

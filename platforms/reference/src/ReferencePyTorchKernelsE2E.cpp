@@ -190,7 +190,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		auto forceTensor = torch::zeros_like(positionsTensor);
 		auto signalDerivTensor = torch::zeros_like(signalsTensor);
 
-		forceTensor = - positionsTensor.grad();
+		forceTensor = - positionsTensor.grad().clone().detach();
 		signalDerivTensor = signalsTensor.grad().clone().detach();
 
 		positionsTensor.grad().zero_();
@@ -210,7 +210,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 			MDForce[particleIndices[i]][1] += NNForce[i][1];
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 
-			for (int j=0; j<3; j++) { // ignore lambda for now
+			for (int j=0; j<4; j++) { 
 			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
 			}
 			

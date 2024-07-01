@@ -46,7 +46,7 @@ void testForceFixedAssignments() {
 	
 	std::vector<double> sf_weights={10000,10000,10000,10000};
 	double scale = 10.0;
-	int assignFreq = -1;
+	int assignFreq = 1;
 	std::vector<std::vector<int>> rest_idxs {{0,1}};
 	std::vector<double> rest_dists {0.1};
 	double rest_rmax_delta = 0.5;
@@ -205,7 +205,9 @@ int main(int argc, char* argv[]) {
 	if (argc > 1)
 	  Platform::getPlatformByName("CUDA").setPropertyDefaultValue("Precision", string(argv[1]));
 
+	std::cout << "Test 1\n";
 	testForceFixedAssignments();
+	std::cout << "Test 2\n";
 	testForceVariableAssignments();
 	}
 	catch(const std::exception& e) {

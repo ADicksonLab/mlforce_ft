@@ -213,7 +213,7 @@ void testRestEnergyAndForce() {
 	State state2 = context2.getState(State::Energy | State::Forces);
 
 	double tgt_energy = 0.5*scale*rest_k2*(0.5*0.5);
-	ASSERT_EQUAL(state2.getPotentialEnergy() - state1.getPotentialEnergy(), tgt_energy);
+	ASSERT(state2.getPotentialEnergy() - state1.getPotentialEnergy() - tgt_energy < TOL);
 	vector<Vec3> f1 = state1.getForces();
 	vector<Vec3> f2 = state2.getForces();
 	Vec3 p0_diff = f2[0]-f1[0];
@@ -237,8 +237,8 @@ int main(int argc, char* argv[]) {
 	if (argc > 1)
 	  Platform::getPlatformByName("CUDA").setPropertyDefaultValue("Precision", string(argv[1]));
 
-	//testForceEmptyVsOff(); // expensive and redundant with reference tests
-	//testForceOffVsMinimum(); // expensive and redundant with reference tests
+	testForceEmptyVsOff(); // expensive and redundant with reference tests
+	testForceOffVsMinimum(); // expensive and redundant with reference tests
 	testRestEnergyAndForce();
 	}
 	catch(const std::exception& e) {

@@ -33,7 +33,7 @@ void testForce() {
 	  positions[i] = Vec3(genrand_real2(sfmt), genrand_real2(sfmt), genrand_real2(sfmt))*10;
 	}
 	std::vector<int> pindices={0, 1, 2};
-	std::vector<double> weights={10000,10000,10000,10000};
+	std::vector<double> weights={1,1,1,1};
 	double scale = 3084.0973724679484;
 	double offset = -1421.63869806774;
 	

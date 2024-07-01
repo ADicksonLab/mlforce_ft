@@ -64,6 +64,48 @@ private:
     CUfunction copyInputsKernel, addForcesKernel;
 };
 
+/**
+ * This kernel is invoked by PyTorchForce to calculate the forces acting on the system and the energy of the system.
+ */
+class CudaCalcPyTorchForceE2EKernel : public CalcPyTorchForceE2EKernel {
+public:
+    CudaCalcPyTorchForceE2EKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu) :
+	  CalcPyTorchForceE2EKernel(name, platform), hasInitializedKernel(false), cu(cu) {
+    }
+    ~CudaCalcPyTorchForceE2EKernel();
+    /**
+     * Initialize the kernel.
+     *
+     * @param system         the System this kernel will be applied to
+     * @param force          the PyTorchForce this kernel will be used for
+     * @param module         the Pytorch model to use for computing forces and energy
+     */
+    void initialize(const OpenMM::System& system, const PyTorchForceE2E& force,
+					torch::jit::script::Module nnModule);
+    /**
+     * Execute the kernel to calculate the forces and/or energy.
+     *
+     * @param context        the context in which to execute this kernel
+     * @param includeForces  true if forces should be calculated
+     * @param includeEnergy  true if the energy should be calculated
+     * @return the potential energy due to the force
+     */
+    double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
+private:
+    bool hasInitializedKernel;
+    OpenMM::CudaContext& cu;
+    torch::jit::script::Module nnModule;
+    torch::Tensor boxVectorsTensor;
+    torch::Tensor edge_idxs, edge_attrs, batch;
+    std::vector<int> particleIndices;
+    std::vector<double> signalForceWeights;
+    double scale, offset;
+	bool usePeriodic;
+
+    CUfunction copyInputsKernel, addForcesKernel;
+};
+
+  
 } // namespace PyTorchPlugin
 
 #endif /*CUDA_PY_TORCH_KERNELS_H_*/

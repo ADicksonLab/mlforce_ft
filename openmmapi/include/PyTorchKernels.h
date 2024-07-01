@@ -49,6 +49,7 @@ public:
 };
 
 
+  
 /**
  * This kernel is invoked by PyTorchForce to calculate the forces acting on the system and the energy of the system.
  */

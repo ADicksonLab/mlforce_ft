@@ -118,7 +118,7 @@ ReferenceCalcPyTorchForceKernel::~ReferenceCalcPyTorchForceKernel() {
  * @param force
  * @param nnModule
  */
-void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module nnModule) {
+void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module& nnModule) {
 	this->nnModule = nnModule;
 	nnModule.to(torch::kCPU);
 	nnModule.eval();

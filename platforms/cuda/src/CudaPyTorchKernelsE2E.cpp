@@ -42,6 +42,11 @@ if (result != CUDA_SUCCESS) { \
 	throw OpenMMException(m.str());\
 }
 
+CudaCalcPyTorchForceE2EKernel::CudaCalcPyTorchForceE2EKernel(string name, const Platform& platform, CudaContext& cu): CalcPyTorchForceE2EKernel(name, platform), hasInitializedKernel(false), cu(cu) {
+    // Explicitly activate the primary context
+    CHECK_RESULT(cuDevicePrimaryCtxRetain(&primaryContext, cu.getDevice()), "Failed to retain the primary context");
+}
+
 /**
  * @brief Destroy the Cuda CalcPy Torch Force Kernel:: Cuda CalcPy Torch Force Kernel object
  *

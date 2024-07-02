@@ -16,8 +16,6 @@ extern "C" OPENMM_EXPORT void registerPlatforms() {
 
 extern "C" OPENMM_EXPORT void registerKernelFactories() {
     try {
-        int argc = 0;
-        vector<char**> argv = {NULL};
         Platform& platform = Platform::getPlatformByName("CUDA");
         CudaPyTorchKernelFactory* factory = new CudaPyTorchKernelFactory();
         platform.registerKernelFactory(CalcPyTorchForceKernel::Name(), factory);

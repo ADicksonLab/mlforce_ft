@@ -1,5 +1,6 @@
 #include "CudaPyTorchKernels.h"
 #include "CudaPyTorchKernelSources.h"
+#include "openmm/common/ContextSelector.h"
 #include "openmm/internal/ContextImpl.h"
 #include <map>
 #include <cuda_runtime_api.h>
@@ -74,10 +75,26 @@ std::vector<int> getReverseAssignment(std::vector<int> assignment) {
 }
 
 /**
- * @brief Destroy the Cuda CalcPy Torch Force Kernel:: Cuda CalcPy Torch Force Kernel object
- *
+ * Get a pointer to the data in a PyTorch tensor.
+ * The tensor is converted to the correct data type if necessary.
  */
+static void* getTensorPointer(OpenMM::CudaContext& cu, torch::Tensor& tensor) {
+    void* data;
+    if (cu.getUseDoublePrecision()) {
+        data = tensor.to(torch::kFloat64).data_ptr<double>();
+    } else {
+        data = tensor.to(torch::kFloat32).data_ptr<float>();
+    }
+    return data;
+}
+
+CudaCalcPyTorchForceKernel::CudaCalcPyTorchForceKernel(string name, const Platform& platform, CudaContext& cu) : CalcPyTorchForceKernel(name, platform), hasInitializedKernel(false), cu(cu) {
+    // Explicitly activate the primary context
+    CHECK_RESULT(cuDevicePrimaryCtxRetain(&primaryContext, cu.getDevice()), "Failed to retain the primary context");
+}
+
 CudaCalcPyTorchForceKernel::~CudaCalcPyTorchForceKernel() {
+    cuDevicePrimaryCtxRelease(cu.getDevice());
 }
 
 /**
@@ -88,12 +105,16 @@ CudaCalcPyTorchForceKernel::~CudaCalcPyTorchForceKernel() {
  * @param nnModule
  */
 
-void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module nnModule) {
+void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module& nnModule) {
 
-	this->nnModule = nnModule; 
+	this->nnModule = nnModule;
 	nnModule.to(torch::kCPU);
 	nnModule.eval();
 
+	int numParticles = system.getNumParticles();
+
+	// get info from PyTorchForce object
+	
 	scale = force.getScale();
 	assignFreq = force.getAssignFreq();
 	particleIndices = force.getParticleIndices();
@@ -117,6 +138,20 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
 
+    // Push the PyTorch context
+    // NOTE: Pytorch is always using the primary context.
+    //       It makes the primary context current, if it is not a case.
+    CHECK_RESULT(cuCtxPushCurrent(primaryContext), "Failed to push the CUDA context");
+
+	// Initialize CUDA objects for PyTorch
+    const torch::Device device(torch::kCUDA, cu.getDeviceIndex()); // This implicitly initializes PyTorch
+    torch::TensorOptions options_gpu = torch::TensorOptions().device(device).dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
+
+	// Pop the PyTorch context
+    CUcontext ctx;
+    CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");
+    assert(primaryContext == ctx); // Check that PyTorch haven't messed up the context stack
+	
 	//get target features
 	targetFeatures = force.getTargetFeatures();
 	targetFeaturesTensor = torch::zeros({static_cast<int64_t>(targetFeatures.size()),
@@ -132,20 +167,23 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 					{static_cast<int64_t>(signalForceWeights.size())},
 					torch::kFloat64);
 
-	torch::TensorOptions options = torch::TensorOptions().
+	torch::TensorOptions options_cpu = torch::TensorOptions().
 		device(torch::kCPU).
 		dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
 
-	targetFeaturesTensor = targetFeaturesTensor.to(options);
-	signalFW_tensor= signalFW_tensor.to(options);
+	targetFeaturesTensor = targetFeaturesTensor.to(options_cpu);
+	signalFW_tensor= signalFW_tensor.to(options_cpu);
+	restraintForceTensor = torch::zeros({numParticles, 3}, options_cpu);
+	paddedForceTensor = torch::zeros({numParticles, 3}, options_cpu);
 
+	
 	if (usePeriodic) {
-		boxVectorsTensor = torch::empty({3, 3}, options);
+		boxVectorsTensor = torch::empty({3, 3}, options_cpu);
 	}
 
-	// Inititalize CUDA objects.
+	// Inititalize CUDA objects for OpenMM context
 
-	cu.setAsCurrent();
+	ContextSelector selector(cu); // Switch to the OpenMM context
 	map<string, string> defines;
 	CUmodule program = cu.createModule(CudaPyTorchKernelSources::PyTorchForce, defines);
 	copyInputsKernel = cu.getKernel(program, "copyInputs");
@@ -153,6 +191,7 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
 
 	step_count = 0;
 }
+
 
 /**
  * @brief
@@ -163,7 +202,10 @@ void CudaCalcPyTorchForceKernel::initialize(const System& system, const PyTorchF
  * @return double
  */
 double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForces, bool includeEnergy) {
-	int numParticles = cu.getNumAtoms();
+    // Push to the PyTorch context
+    CHECK_RESULT(cuCtxPushCurrent(primaryContext), "Failed to push the CUDA context");  
+	
+    int numParticles = cu.getNumAtoms();
 	int numGhostParticles = particleIndices.size();
 
 	vector<Vec3> MDPositions;
@@ -214,18 +256,18 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 
 	// synchronizing the current context before switching to PyTorch
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
-
+	
 	// outputTensor is the gp features(AEV)
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
 	int outputTensorSize = outputTensor.size(1);
 
 	torch::Tensor AEVForceWeights = torch::ones({outputTensorSize}, options); 
 	torch::Tensor allForceWeights = torch::cat({ AEVForceWeights, signalFW_tensor}, 0); // all force weights (features + attributes)
-
-	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1); 
+	
+	torch::Tensor ghFeaturesTensor = torch::cat({outputTensor, signalsTensor}, 1);
 	allForceWeights = allForceWeights.to(options); 
 	ghFeaturesTensor = ghFeaturesTensor.to(options);
-
+	
     // call Hungarian algorithm to determine mapping (and loss)
     if (assignFreq > 0) {
 	  if (step_count % assignFreq == 0) {
@@ -259,43 +301,76 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 	torch::Tensor sumWeightedDiff = weightedDiff.sum();
 	torch::Tensor mse = sumWeightedDiff / (ghFeaturesTensor.size(0) * ghFeaturesTensor.size(1));
 	torch::Tensor energyTensor = scale * mse.clone();
-
+	
 	// calculate force on the signals (first, clip out signals from the end of features)
 	torch::Tensor targtSignalsTensor = reFeaturesTensor.narrow(1, -4, 4); // only target attributes
 	double restraint_energy = 0;
 
-	torch::Tensor restraintForceTensor = torch::zeros({numParticles, 3}, torch::TensorOptions().dtype(torch::kFloat64));
-	auto rfaccessor = restraintForceTensor.accessor<double,2>();
-	// compute energies and forces from restraints
-	for (int i = 0; i < numRestraints; i++) {
-	  int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
-	  int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
-	  OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
-	  double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-	  if (rlensq > r0sq[i]) {
-		double rlen = sqrt(rlensq);
-		if (rlen < rmax[i]) {
-		  double dr = rlen-targetRestraintDistances[i];
-		  restraint_energy += 0.5*scale*restraint_k*dr*dr;
-		  if (includeForces) {
-			OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
-			for (int j = 0; j < 3; j++) {
-			  rfaccessor[g1idx][j] -= dvdx[j];
-			  rfaccessor[g2idx][j] += dvdx[j];
+	if (cu.getUseDoublePrecision()) {
+	  auto rfaccessor = restraintForceTensor.accessor<double,2>();
+	  // compute energies and forces from restraints
+	  for (int i = 0; i < numRestraints; i++) {
+		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
+		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		double rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+		if (rlensq > r0sq[i]) {
+		  double rlen = sqrt(rlensq);
+		  if (rlen < rmax[i]) {
+			double dr = rlen-targetRestraintDistances[i];
+			restraint_energy += 0.5*scale*restraint_k*dr*dr;
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
 			}
-		  }
-		} else {
-		  restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
-		  if (includeForces) {
-			OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
-			for (int j = 0; j < 3; j++) {
-			  rfaccessor[g1idx][j] -= dvdx[j];
-			  rfaccessor[g2idx][j] += dvdx[j];
+		  } else {
+			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
 			}
 		  }
 		}
 	  }
-	}
+    } else {
+	  auto rfaccessor = restraintForceTensor.accessor<float,2>();
+	  // compute energies and forces from restraints
+	  for (int i = 0; i < numRestraints; i++) {
+		int g1idx = reverse_assignment[targetRestraintIndices[i][0]];
+		int g2idx = reverse_assignment[targetRestraintIndices[i][1]];
+		OpenMM::Vec3 r = MDPositions[g1idx] - MDPositions[g2idx];
+		float rlensq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+		if (rlensq > r0sq[i]) {
+		  float rlen = sqrt(rlensq);
+		  if (rlen < rmax[i]) {
+			float dr = rlen-targetRestraintDistances[i];
+			restraint_energy += 0.5*scale*restraint_k*dr*dr;
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*dr*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  } else {
+			restraint_energy += scale*(restraint_k*(rmax[i]-targetRestraintDistances[i])*rlen +	restraint_b[i]);
+			if (includeForces) {
+			  OpenMM::Vec3 dvdx = scale*restraint_k*(rmax[i]-targetRestraintDistances[i])*r/rlen;
+			  for (int j = 0; j < 3; j++) {
+				rfaccessor[g1idx][j] -= dvdx[j];
+				rfaccessor[g2idx][j] += dvdx[j];
+			  }
+			}
+		  }
+		}
+	  }
+    }
 	// get forces on positions as before
 	if (includeForces) {
 
@@ -310,7 +385,7 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 		auto signalsGradTensor = torch::zeros_like(signalsTensor);
 		/*The .clone() function is used to create a new tensor with the same values as positionsTensor.grad() 
 		to ensure that it is not affected by subsequent operations.*/
-		forceTensor = - positionsTensor.grad().clone(); 
+		forceTensor = - positionsTensor.grad().clone();
 		signalsGradTensor = signalsTensor.grad().clone(); 
 
 		positionsTensor.grad().zero_(); // clear the gradients before the next round of backpropagation or gradient computation.
@@ -320,7 +395,6 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 
 		// saving signals derivatives to context
 		//std::ofstream outputFile("/home/andre/code/mlforce_ft/data.txt" , std::ios::app);
-
 		if (cu.getUseDoublePrecision()) {
 			double parameter_deriv;
 			auto signalsGradData = signalsGradTensor.accessor<double, 2>();
@@ -344,31 +418,32 @@ double CudaCalcPyTorchForceKernel::execute(ContextImpl& context,bool includeForc
 		}
 
 		// sending atomic forces to cuda context
-		torch::Tensor paddedForceTensor = torch::zeros({numParticles, 3}, torch::TensorOptions().dtype(torch::kFloat64));
+		paddedForceTensor = torch::zeros({numParticles, 3});
 		paddedForceTensor.narrow(0,
 			static_cast<int64_t>(particleIndices[0]),
 			static_cast<int64_t>(particleIndices.size())).copy_(forceTensor);
 		paddedForceTensor += restraintForceTensor; 
-
+		
+		//void* forceData = paddedForceTensor.data_ptr;
 		const torch::Device device(torch::kCUDA, cu.getDeviceIndex());
 		paddedForceTensor = paddedForceTensor.to(device);
+		void* forceData = getTensorPointer(cu, paddedForceTensor);
+		
 		CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
-		cu.setAsCurrent();
-		void* fdata;
-		if (cu.getUseDoublePrecision()) {
-			if (!(paddedForceTensor.dtype() == torch::kFloat64))
-				paddedForceTensor = paddedForceTensor.to(torch::kFloat64);
-			fdata = paddedForceTensor.data_ptr<double>();
+		//cu.setAsCurrent();
+		{
+		  ContextSelector selector(cu); // Switch to the OpenMM context
+		  int paddedNumAtoms = cu.getPaddedNumAtoms();
+		  void* forceArgs[] = {&forceData, &cu.getForce().getDevicePointer(),
+			&cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
+		  cu.executeKernel(addForcesKernel, forceArgs, numParticles);
+		  CHECK_RESULT(cuCtxSynchronize(), "Failed to synchronize the CUDA context"); // Synchronize before switching to the PyTorch context
 		}
-		else {
-			if (!(paddedForceTensor.dtype() == torch::kFloat32))
-				paddedForceTensor= paddedForceTensor.to(torch::kFloat32);
-			fdata = paddedForceTensor.data_ptr<float>();
-		}
-		int paddedNumAtoms = cu.getPaddedNumAtoms();
-		void* forceArgs[] = {&fdata, &cu.getForce().getDevicePointer(),
-							 &cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
-		cu.executeKernel(addForcesKernel, forceArgs, numParticles);
 	}
-	return energyTensor.item<double>() + restraint_energy;
+    const double energy = energyTensor.item<double>(); // This implicitly synchronizes the PyTorch context
+    // Pop to the PyTorch context
+    CUcontext ctx;
+    CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");
+    assert(primaryContext == ctx); // Check that the correct context was popped
+    return energy + restraint_energy;
 }

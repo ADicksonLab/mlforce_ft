@@ -18,10 +18,8 @@ namespace PyTorchPlugin {
  */
 class CudaCalcPyTorchForceKernel : public CalcPyTorchForceKernel {
 public:
-    CudaCalcPyTorchForceKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu) :
-	    CalcPyTorchForceKernel(name, platform), hasInitializedKernel(false), cu(cu) {
-    }
-    ~CudaCalcPyTorchForceKernel();
+  CudaCalcPyTorchForceKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu);
+  ~CudaCalcPyTorchForceKernel();
     /**
      * Initialize the kernel.
      *
@@ -30,7 +28,7 @@ public:
      * @param module         the Pytorch model to use for computing forces and energy
      */
     void initialize(const OpenMM::System& system, const PyTorchForce& force,
-					torch::jit::script::Module nnModule);
+					torch::jit::script::Module& nnModule);
     /**
      * Execute the kernel to calculate the forces and/or energy.
      *
@@ -45,6 +43,7 @@ private:
     OpenMM::CudaContext& cu;
     torch::jit::script::Module nnModule;
     torch::Tensor boxVectorsTensor, targetFeaturesTensor, signalFW_tensor;
+    torch::Tensor restraintForceTensor, paddedForceTensor;
     std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
     std::vector<std::vector<double> > targetFeatures;
@@ -62,6 +61,7 @@ private:
     std::vector<int> assignment;
     std::vector<int> reverse_assignment;
     CUfunction copyInputsKernel, addForcesKernel;
+    CUcontext primaryContext;
 };
 
 /**
@@ -69,11 +69,9 @@ private:
  */
 class CudaCalcPyTorchForceE2EKernel : public CalcPyTorchForceE2EKernel {
 public:
-    CudaCalcPyTorchForceE2EKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu) :
-	  CalcPyTorchForceE2EKernel(name, platform), hasInitializedKernel(false), cu(cu) {
-    }
-    ~CudaCalcPyTorchForceE2EKernel();
-    /**
+  CudaCalcPyTorchForceE2EKernel(std::string name, const OpenMM::Platform& platform, OpenMM::CudaContext& cu);
+  ~CudaCalcPyTorchForceE2EKernel();
+  /**
      * Initialize the kernel.
      *
      * @param system         the System this kernel will be applied to
@@ -103,6 +101,7 @@ private:
 	bool usePeriodic;
 
     CUfunction copyInputsKernel, addForcesKernel;
+    CUcontext primaryContext;
 };
 
   

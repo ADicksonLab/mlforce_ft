@@ -11,7 +11,7 @@ Once libtorch is installed, MLForce can be installed as follows:
 
 1- clone MLforce from its repository
 #+begin_src bash
-  git clone git@gitlab.com:ADicksonLab/mlforce_ft.git
+  https://github.com/ADicksonLab/mlforce_ft.git
 #+end_src
 
 2- You should use conda (or mamba) to make a new virtual environment using the ~environment.yml~
@@ -20,7 +20,7 @@ Once libtorch is installed, MLForce can be installed as follows:
   conda activate myenv
 #+end_src
 
-3- Create ~build~ directory to install MLForce in it
+3- Create ~build~ directory in which to install MLForce
 #+begin_src bash
   cd mlforce
   mkdir build && cd build

@@ -5,20 +5,16 @@ This is an [[http://openmm.org][OpenMM]] plugin that makes possible the [[https:
 used for creating external forces.
 
 * Installation
-There are three ways to install dependencies of this package.
-- Installing [[ https://github.com/pytorch/pytorch#from-source][PyTorch]] from source and use the libtorch from it.
-- Installing [[https://pytorch.or][LibTorch]] from its binary CXX ABI files or build it from
-  its source following instruction at [[https://github.com/pytorch/pytorch/blob/master/docs/libtorch.rst][here]].
-- Installing all packages from Conda-forge channel via conda.
+Before building this package you should install [[https://pytorch.or][LibTorch]] from its binary CXX ABI files or build it from its source following instructions [[https://github.com/pytorch/pytorch/blob/master/docs/libtorch.rst][here]].
 
-Here we provide instructions uisng the third method, follow these instructions to install MLForce
+Once libtorch is installed, MLForce can be installed as follows:
 
 1- clone MLforce from its repository
 #+begin_src bash
   https://github.com/ADicksonLab/mlforce_ft.git
 #+end_src
 
-2- You should use conda to make a new virtual environment using the ~environment.yml~
+2- You should use conda (or mamba) to make a new virtual environment using the ~environment.yml~
 #+begin_src bash
   conda env create -n myenv -f environment.yml
   conda activate myenv
@@ -30,36 +26,35 @@ Here we provide instructions uisng the third method, follow these instructions t
   mkdir build && cd build
 #+end_src
 
-4- Run the ~cmake~ command while passing the installed Libtorch path
+4- Set the CUDACXX environment variable to point to your local nvcc compiler, e.g.:
 #+begin_src bash
-  cmake -DCMAKE_PREFIX_PATH="$(python -c 'import torch.utils; print(torch.utils.cmake_prefix_path)')" ..
-#+end_src
+  export CUDACXX="/usr/local/cuda/bin/nvcc"
+  #+end_src
+  
+5- Run `cmake`, including the directory where you installed libtorch:
+#+begin_src bash
+  cmake -DCMAKE_PREFIX_PATH="/path/to/libtorch" ..
+#+end_src 
 
-5- Run the ~ccmake~ command to set up the configuration for bulding MLForce
-
+6- Run `ccmake`:
 #+begin_src bash
   ccmake -i ..
-#+end_src
-6-Make sure that the path to ~OPENMM_DIR~ and ~CMAKE_INSTALL_PREFIX~ set to
-the OpenMM path you installed
+#+end_src 
 
-7- If you want to build the CUDA platform set the ~NN_BUILD_CUDA_LIB~
-to ~on~ and if you want to build the OpenCL platform set the
-~NN_BUILD_OPENCL_LIB~ to ~on~ as well
+7- Set `OPENMM_DIR` and `CMAKE_INSTALL_PREFIX` to point to the directory where OpenMM is installed.
+In this case, it should point to the directory for your conda/mamba environment, e.g.: `/your/home/dir/micromamba/envs/myenv`
 
-8- Press "c" to configure the plugin then press "g" to generate it
+8- Set `PYTORCH_DIR` to point to the directory where you installed the LibTorch.
 
-9- Install the MLForce plugin
-#+begin_src bash
-  make install
-#+end_src
+9- If you plan to build the CUDA platform, make sure that `CUDA_TOOLKIT_ROOT_DIR` is set correctly
+and that `NN_BUILD_CUDA_LIB` is selected.
 
-10- Install the Python wrapper
-#+begin_src bash
-  make PythonInstall
-#+end_src
+10- Press "Configure", then press "Generate".
 
-11- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~
+11- Type `make install` to install the plugin, and `make PythonInstall` to
+install the Python wrapper.
+
+12- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~
 #+begin_src bash
 export LIBTORCH_LIBRARY_PATH="path/to/libtorch/lib"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBTORCH_LIBRARY_PATH"

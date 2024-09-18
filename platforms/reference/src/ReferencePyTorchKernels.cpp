@@ -60,7 +60,7 @@ static map<string, double>& extractEnergyParameterDerivatives(ContextImpl& conte
  * @param numParticles
  * @return std::vector<double>
  */
-std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
+static std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
@@ -71,6 +71,7 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
 	return signals;
 }
 
+
 /**
  * @brief
  *
@@ -79,7 +80,7 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
  * @param nCols
  * @return std::vector<std::vector<double> >
  */
-std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+static std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
 	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
 		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
@@ -94,7 +95,7 @@ std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCol
  * @param assignment
  * @return std::vector<int>
  */
-std::vector<int> getReverseAssignment(std::vector<int> assignment) {
+static std::vector<int> getReverseAssignment(std::vector<int> assignment) {
 	int n = assignment.size();
 	std::vector<int> rev_assignment(n, -1);
 	for (int i=0; i<n; i++) {
@@ -117,7 +118,7 @@ ReferenceCalcPyTorchForceKernel::~ReferenceCalcPyTorchForceKernel() {
  * @param force
  * @param nnModule
  */
-void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module nnModule) {
+void ReferenceCalcPyTorchForceKernel::initialize(const System& system, const PyTorchForce& force, torch::jit::script::Module& nnModule) {
 	this->nnModule = nnModule;
 	nnModule.to(torch::kCPU);
 	nnModule.eval();
@@ -213,6 +214,7 @@ double ReferenceCalcPyTorchForceKernel::execute(ContextImpl& context, bool inclu
 
 	// outputTensor : attributes (ANI AEVs)
 	torch::Tensor outputTensor = nnModule.forward(nnInputs).toTensor();
+	
 
 	// call Hungarian algorithm to determine mapping (and loss)
 	if (assignFreq > 0) {

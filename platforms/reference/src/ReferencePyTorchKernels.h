@@ -1,37 +1,6 @@
 #ifndef REFERENCE_PY_TORCH_KERNELS_H_
 #define REFERENCE_PY_TORCH_KERNELS_H_
 
-/* -------------------------------------------------------------------------- *
- *                                   OpenMM                                   *
- * -------------------------------------------------------------------------- *
- * This is part of the OpenMM molecular simulation toolkit originating from   *
- * Simbios, the NIH National Center for Physics-Based Simulation of           *
- * Biological Structures at Stanford, funded under the NIH Roadmap for        *
- * Medical Research, grant U54 GM072970. See https://simtk.org.               *
- *                                                                            *
- * Portions copyright (c) 2018 Stanford University and the Authors.           *
- * Authors: Peter Eastman                                                     *
- * Contributors:                                                              *
- *                                                                            *
- * Permission is hereby granted, free of charge, to any person obtaining a    *
- * copy of this software and associated documentation files (the "Software"), *
- * to deal in the Software without restriction, including without limitation  *
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
- * and/or sell copies of the Software, and to permit persons to whom the      *
- * Software is furnished to do so, subject to the following conditions:       *
- *                                                                            *
- * The above copyright notice and this permission notice shall be included in *
- * all copies or substantial portions of the Software.                        *
- *                                                                            *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
- * THE AUTHORS, CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,    *
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR      *
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE  *
- * USE OR OTHER DEALINGS IN THE SOFTWARE.                                     *
- * -------------------------------------------------------------------------- */
-
 #include "PyTorchKernels.h"
 #include "Hungarian.h"
 //#include "Distances.h"
@@ -63,7 +32,7 @@ public:
      * @param module         the Pytorch model to use for computing forces and energy
      */
 	void initialize(const OpenMM::System& system, const PyTorchForce& force,
-			torch::jit::script::Module nnModule);
+			torch::jit::script::Module& nnModule);
 
     /**
      * Execute the kernel to calculate the forces and/or energy.
@@ -86,7 +55,7 @@ private:
 	std::vector<double> targetRestraintParams;
 	std::vector<double> rmax, r0sq, restraint_b;
 	double restraint_k, rmax_delta;
-	double scale;
+    double scale, offset;
 	bool usePeriodic;
     HungarianAlgorithm hungAlg;
     int step_count;
@@ -96,6 +65,40 @@ private:
 	std::vector<int> reverse_assignment;
 };
 
+class ReferenceCalcPyTorchForceE2EKernel : public CalcPyTorchForceE2EKernel {
+public:
+    ReferenceCalcPyTorchForceE2EKernel(std::string name, const OpenMM::Platform& platform) : CalcPyTorchForceE2EKernel(name, platform) {
+	}
+	~ReferenceCalcPyTorchForceE2EKernel();
+      /**
+     * Initialize the kernel.
+     *
+     * @param system         the System this kernel will be applied to
+     * @param force          the PyTorchForce this kernel will be used for
+     * @param module         the Pytorch model to use for computing forces and energy
+     */
+	void initialize(const OpenMM::System& system, const PyTorchForceE2E& force,
+			torch::jit::script::Module& nnModule);
+
+    /**
+     * Execute the kernel to calculate the forces and/or energy.
+     *
+     * @param context        the context in which to execute this kernel
+     * @param includeForces  true if forces should be calculated
+     * @param includeEnergy  true if the energy should be calculated
+     * @return the potential energy due to the force
+     */
+	double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
+private:
+	torch::jit::script::Module nnModule;
+	torch::Tensor boxVectorsTensor;
+    torch::Tensor edge_idxs, edge_attrs, batch;
+	std::vector<int> particleIndices;
+    std::vector<double> signalForceWeights;
+    double scale, offset;
+	bool usePeriodic;
+};
+  
 } // namespace PyTorchPlugin
 
 #endif /*REFERENCE_NEURAL_NETWORK_KERNELS_H_*/

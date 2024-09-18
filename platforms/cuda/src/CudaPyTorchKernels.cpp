@@ -22,7 +22,7 @@ using namespace std;
 // This function extracts and collects context variables for each particle and returns them as a vector of doubles.
 // signals vector would have a length of numParticles * PARAMETERNAMES.size()
 
-std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
+static std::vector<double> extractContextVariables(ContextImpl& context, int numParticles) {
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
@@ -44,7 +44,7 @@ std::vector<double> extractContextVariables(ContextImpl& context, int numParticl
 
  // this function converts a 1D tensor into a 2D vector (distMat). Each row of the input array is mapped to a row in the resulting 2D vector. 
  // distMat has nRows rows and nCols columns.
-std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
+static std::vector<std::vector<double> > tensorTo2DVec(double* ptr, int nRows, int nCols) {
 	std::vector<std::vector<double> > distMat(nRows, std::vector<double>(nCols));
 	for (int i=0; i<nRows; i++) {
 		std::vector<double> vec(ptr+nCols*i, ptr+nRows*(i+1));
@@ -63,7 +63,7 @@ if (result != CUDA_SUCCESS) { \
 	throw OpenMMException(m.str());\
 }
 
-std::vector<int> getReverseAssignment(std::vector<int> assignment) {
+static std::vector<int> getReverseAssignment(std::vector<int> assignment) {
 	int n = assignment.size();
 	std::vector<int> rev_assignment(n, -1);
 	for (int i=0; i<n; i++) {

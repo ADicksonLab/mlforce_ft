@@ -68,7 +68,7 @@ public:
 	 * @param module         the Pytorch model to use for computing forces and energy
 	 */
   virtual void initialize(const OpenMM::System& system, const PyTorchForceE2E& force,
-						  torch::jit::script::Module nnModule) = 0;
+						  torch::jit::script::Module& nnModule) = 0;
 						  // std::vector<std::vector<double>> initialSignals,
 						  // std::vector<std::vector<double>> targetFeatures) = 0;
   //at::ScalarType positionsType, at::ScalarType boxType, at::ScalarType energyType,

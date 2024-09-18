@@ -79,7 +79,7 @@ public:
      * @param module         the Pytorch model to use for computing forces and energy
      */
     void initialize(const OpenMM::System& system, const PyTorchForceE2E& force,
-					torch::jit::script::Module nnModule);
+					torch::jit::script::Module& nnModule);
     /**
      * Execute the kernel to calculate the forces and/or energy.
      *

@@ -1,5 +1,6 @@
 #include "CudaPyTorchKernels.h"
 #include "CudaPyTorchKernelSources.h"
+#include "openmm/common/ContextSelector.h"
 #include "openmm/internal/ContextImpl.h"
 #include <map>
 #include <cuda_runtime_api.h>
@@ -42,6 +43,20 @@ if (result != CUDA_SUCCESS) { \
 	throw OpenMMException(m.str());\
 }
 
+/**
+ * Get a pointer to the data in a PyTorch tensor.
+ * The tensor is converted to the correct data type if necessary.
+ */
+static void* getTensorPointer(OpenMM::CudaContext& cu, torch::Tensor& tensor) {
+    void* data;
+    if (cu.getUseDoublePrecision()) {
+        data = tensor.to(torch::kFloat64).data_ptr<double>();
+    } else {
+        data = tensor.to(torch::kFloat32).data_ptr<float>();
+    }
+    return data;
+}
+
 CudaCalcPyTorchForceE2EKernel::CudaCalcPyTorchForceE2EKernel(string name, const Platform& platform, CudaContext& cu): CalcPyTorchForceE2EKernel(name, platform), hasInitializedKernel(false), cu(cu) {
     // Explicitly activate the primary context
     CHECK_RESULT(cuDevicePrimaryCtxRetain(&primaryContext, cu.getDevice()), "Failed to retain the primary context");
@@ -52,6 +67,7 @@ CudaCalcPyTorchForceE2EKernel::CudaCalcPyTorchForceE2EKernel(string name, const 
  *
  */
 CudaCalcPyTorchForceE2EKernel::~CudaCalcPyTorchForceE2EKernel() {
+  cuDevicePrimaryCtxRelease(cu.getDevice());
 }
 
 /**
@@ -62,11 +78,11 @@ CudaCalcPyTorchForceE2EKernel::~CudaCalcPyTorchForceE2EKernel() {
  * @param nnModule
  */
 
-void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTorchForceE2E& force, torch::jit::script::Module nnModule) {
+void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTorchForceE2E& force, torch::jit::script::Module& nnModule) {
 
 	this->nnModule = nnModule; 
-	nnModule.eval();
 	nnModule.to(torch::kCPU);
+	nnModule.eval();
 
 	scale = force.getScale();
 	offset = force.getOffset();
@@ -82,13 +98,24 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
       boxVectorsTensor = boxVectorsTensor.to(torch::kFloat32);
     }
 
-	// Inititalize CUDA objects.
-	cu.setAsCurrent();
-	map<string, string> defines;
-	CUmodule program = cu.createModule(CudaPyTorchKernelSources::PyTorchForce, defines);
-	copyInputsKernel = cu.getKernel(program, "copyInputs");
-	addForcesKernel = cu.getKernel(program, "addForces");
+    // Push the PyTorch context
+    // NOTE: Pytorch is always using the primary context.
+    //       It makes the primary context current, if it is not a case.
+    CHECK_RESULT(cuCtxPushCurrent(primaryContext), "Failed to push the CUDA context");
 
+	// Initialize CUDA objects for PyTorch
+    const torch::Device device(torch::kCUDA, cu.getDeviceIndex()); // This implicitly initializes PyTorch
+    torch::TensorOptions options_gpu = torch::TensorOptions().device(device).dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
+
+	// Pop the PyTorch context
+    CUcontext ctx;
+    CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");
+    assert(primaryContext == ctx); // Check that PyTorch haven't messed up the context stack
+
+	torch::TensorOptions options_cpu = torch::TensorOptions().
+	  device(torch::kCPU).
+	  dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
+	
 	// prepare all-to-all edge tensors
     std::vector<vector<int64_t>> edges;
     for (int64_t i = 0; i < numGhostParticles; i++) {
@@ -114,6 +141,12 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
 	edge_attrs = torch::zeros({num_edges, 1}, torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCPU));
     batch = torch::zeros({numGhostParticles}, torch::TensorOptions().dtype(torch::kInt64).device(torch::kCPU));
 
+    ContextSelector selector(cu); // Switch to the OpenMM context
+    map<string, string> defines;
+    CUmodule program = cu.createModule(CudaPyTorchKernelSources::PyTorchForce, defines);
+    copyInputsKernel = cu.getKernel(program, "copyInputs");
+    addForcesKernel = cu.getKernel(program, "addForces");
+	
 }
 
 /**
@@ -125,34 +158,42 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
  * @return double
  */
 double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeForces, bool includeEnergy) {
-	int numParticles = cu.getNumAtoms();
+    // Push to the PyTorch context
+    CHECK_RESULT(cuCtxPushCurrent(primaryContext), "Failed to push the CUDA context");
+    int numParticles = cu.getNumAtoms();
 	int numGhostParticles = particleIndices.size();
 
-	vector<Vec3> MDPositions;
-	context.getPositions(MDPositions);
-	torch::Tensor positionsTensor = torch::empty({static_cast<int64_t>(numGhostParticles), 3},
-												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32).device(torch::kCPU));
-	
-	auto positions = positionsTensor.accessor<float, 2>();
-	for (int i = 0; i < numGhostParticles; i++) {
-	  positions[i][0] = MDPositions[particleIndices[i]][0];
-	  positions[i][1] = MDPositions[particleIndices[i]][1];
-	  positions[i][2] = MDPositions[particleIndices[i]][2];
-	}
-
-	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
-
-    torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4},
-											   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32).device(torch::kCPU));
-
-    auto signals = signalsTensor.accessor<float, 2>();
-
-    //Copy positions to the tensor
-    for (int i = 0; i < numGhostParticles; i++) {
-      for (int j = 0; j < 4; j++) {
-        signals[i][j] = globalVariables[4*i + j];
-      }
+    vector<Vec3> MDPositions;
+    context.getPositions(MDPositions);
+    torch::Tensor positionsTensor = torch::empty({static_cast<int64_t>(numGhostParticles), 3},
+        cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
+    if (cu.getUseDoublePrecision()) {
+        auto positions = positionsTensor.accessor<double, 2>();
+        for (int i = 0; i < numGhostParticles; i++) {
+            positions[i][0] = MDPositions[particleIndices[i]][0];
+            positions[i][1] = MDPositions[particleIndices[i]][1];
+            positions[i][2] = MDPositions[particleIndices[i]][2];
+        }
     }
+    else {
+        auto positions = positionsTensor.accessor<float, 2>();
+        for (int i = 0; i < numGhostParticles; i++) {
+            positions[i][0] = MDPositions[particleIndices[i]][0];
+            positions[i][1] = MDPositions[particleIndices[i]][1];
+            positions[i][2] = MDPositions[particleIndices[i]][2];
+        }
+    }
+
+	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4}, torch::kFloat64);
+    std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
+    signalsTensor = torch::from_blob(globalVariables.data(),
+        {static_cast<int64_t>(numGhostParticles), 4}, torch::kFloat64);
+    torch::TensorOptions options = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
+
+    signalsTensor = signalsTensor.to(options);
+    positionsTensor = positionsTensor.to(options);
+    positionsTensor.requires_grad_(true);
+    signalsTensor.requires_grad_(true) ;
 	
 	// Run the pytorch model and get the energy
 	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
@@ -173,8 +214,8 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 
 		/*The .clone() function is used to create a new tensor with the same values as positionsTensor.grad() 
 		to ensure that it is not affected by subsequent operations.*/
-		forceTensor = - positionsTensor.grad().clone().detach(); 
-		signalDerivTensor = signalsTensor.grad().clone().detach(); 
+		forceTensor = - positionsTensor.grad().clone(); 
+		signalDerivTensor = signalsTensor.grad().clone(); 
 
 		positionsTensor.grad().zero_(); // clear the gradients before the next round of backpropagation or gradient computation.
 		signalsTensor.grad().zero_();
@@ -212,30 +253,29 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		}
 
 		// sending atomic forces to cuda context
-		torch::Tensor paddedForceTensor = torch::zeros({numParticles, 3}, torch::TensorOptions().dtype(torch::kFloat64));
+		torch::Tensor paddedForceTensor = torch::zeros({numParticles, 3});
 		paddedForceTensor.narrow(0,
 			static_cast<int64_t>(particleIndices[0]),
 			static_cast<int64_t>(particleIndices.size())).copy_(forceTensor);
 
 		torch::Device device(torch::kCUDA, cu.getDeviceIndex());
 		paddedForceTensor = paddedForceTensor.to(device);
+		void* fdata = getTensorPointer(cu, paddedForceTensor);
+		
 		CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
-		cu.setAsCurrent();
-		void* fdata;
-		if (cu.getUseDoublePrecision()) {
-			if (!(paddedForceTensor.dtype() == torch::kFloat64))
-				paddedForceTensor = paddedForceTensor.to(torch::kFloat64);
-			fdata = paddedForceTensor.data_ptr<double>();
+		{
+		  ContextSelector selector(cu);
+		  int paddedNumAtoms = cu.getPaddedNumAtoms();
+		  void* forceArgs[] = {&fdata, &cu.getForce().getDevicePointer(),
+							   &cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
+		  cu.executeKernel(addForcesKernel, forceArgs, numParticles);
+		  CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
 		}
-		else {
-			if (!(paddedForceTensor.dtype() == torch::kFloat32))
-				paddedForceTensor= paddedForceTensor.to(torch::kFloat32);
-			fdata = paddedForceTensor.data_ptr<float>();
-		}
-		int paddedNumAtoms = cu.getPaddedNumAtoms();
-		void* forceArgs[] = {&fdata, &cu.getForce().getDevicePointer(),
-							 &cu.getAtomIndexArray().getDevicePointer(), &numParticles, &paddedNumAtoms};
-		cu.executeKernel(addForcesKernel, forceArgs, numParticles);
 	}
-	return energyTensor.item<double>();
+	const double energy = energyTensor.item<double>(); // This implicitly synchronizes the PyTorch context
+    // Pop to the PyTorch context
+    CUcontext ctx;
+    CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");
+    assert(primaryContext == ctx); // Check that the correct context was popped
+    return energy;
 }

@@ -22,7 +22,7 @@ Once libtorch is installed, MLForce can be installed as follows:
 
 3- Create ~build~ directory in which to install MLForce
 #+begin_src bash
-  cd mlforce
+  cd mlforce_ft
   mkdir build && cd build
 #+end_src
 

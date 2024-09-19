@@ -44,7 +44,7 @@ Once libtorch is installed, MLForce can be installed as follows:
 7- Set `OPENMM_DIR` and `CMAKE_INSTALL_PREFIX` to point to the directory where OpenMM is installed.
 In this case, it should point to the directory for your conda/mamba environment, e.g.: `/your/home/dir/micromamba/envs/myenv`
 
-8- Set `PYTORCH_DIR` to point to the directory where you installed the LibTorch.
+8- Set `LIBTORCH_DIR` to point to the directory where you installed the Libtorch.
 
 9- If you plan to build the CUDA platform, make sure that `CUDA_TOOLKIT_ROOT_DIR` is set correctly
 and that `NN_BUILD_CUDA_LIB` is selected. If you don’t plan to use OpenCL, make sure that `NN_BUILD_OPENCL_LIB` is NOT selected.

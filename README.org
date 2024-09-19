@@ -9,9 +9,9 @@ Before building this package you should install [[https://pytorch.or][LibTorch]]
 
 Once libtorch is installed, MLForce can be installed as follows:
 
-1- clone MLforce from its repository
+1- clone MLforce_ft from its repository
 #+begin_src bash
-  https://github.com/ADicksonLab/mlforce_ft.git
+  git clone https://github.com/ADicksonLab/mlforce_ft.git
 #+end_src
 
 2- You should use conda (or mamba) to make a new virtual environment using the ~environment.yml~

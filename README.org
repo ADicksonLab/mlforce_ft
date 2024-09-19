@@ -65,7 +65,7 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$LIBTORCH_LIBRARY_PATH"
  python -c "import mlforce"
 #+end_src
 
-13- To run all the test cases build the "test" target and run:
+13- To run all the test cases build the "test" target by running:
 #+begin_src bash
   make test
 #+end_src 

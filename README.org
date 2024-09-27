@@ -46,12 +46,12 @@ In this case, it should point to the directory for your conda/mamba environment,
 
 8- Set ~LIBTORCH_DIR~ to point to the directory where you installed the Libtorch.
 
-9- If you plan to build the CUDA platform, make sure that `~CUDA_TOOLKIT_ROOT_DIR~ is set correctly
+9- If you plan to build the CUDA platform, make sure that ~CUDA_TOOLKIT_ROOT_DIR~ is set correctly
 and that ~NN_BUILD_CUDA_LIB~ is selected. If you don’t plan to use OpenCL, make sure that ~NN_BUILD_OPENCL_LIB~ is NOT selected.
 
 10- Press "Configure", then press "Generate".
 
-11- Type `~make install~` to install the plugin, and `~make PythonInstall~` to
+11- Type ~make install~ to install the plugin, and ~make PythonInstall~ to
 install the Python wrapper.
 
 12- Add Libtorch library path to the environment variable ~LD_LIBRARY_PATH~

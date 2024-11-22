@@ -6,7 +6,8 @@
 namespace OpenMM {
 
 /**
- * This KernelFactory creates kernels for the reference implementation of the neural network plugin.
+ * This KernelFactory creates kernels for the reference implementation of PyTorchForce objects.
+ * The same factory can make PyTorchForce, PyTorchForceE2E and PyTorchForceE2EDirect kernels.
  */
 
 class ReferencePyTorchKernelFactory : public KernelFactory {

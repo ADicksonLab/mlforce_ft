@@ -12,6 +12,7 @@
 #include "OpenMMDrude.h"
 #include "openmm/RPMDIntegrator.h"
 #include "openmm/RPMDMonteCarloBarostat.h"
+#include <torch/torch.h>
 %}
 namespace std {
   %template(vectori) vector<int>;
@@ -80,4 +81,30 @@ public:
 	void setGlobalParameterDefaultValue(int index, double defaultValue);
 };
 
+class PyTorchForceE2EDirect : public OpenMM::Force {
+public:
+	PyTorchForceE2EDirect(const std::string& file,
+						  const std::vector<int> particleIndices,
+						  const std::vector<double> signalForceWeights,
+						  double scale,
+						  const std::vector<torch::Tensor> fixedInputs,
+						  bool useAttr);
+
+	const std::string& getFile() const;
+	const double getScale() const;
+	const std::vector<torch::Tensor> getFixedInputs() const;
+	const bool getUseAttr() const;
+	const std::vector<int> getParticleIndices() const;
+	const std::vector<double> getSignalForceWeights() const;
+	void setUsesPeriodicBoundaryConditions(bool periodic);
+	bool usesPeriodicBoundaryConditions() const;
+	int getNumGlobalParameters() const;
+	int addGlobalParameter(const std::string& name, double defaultValue);
+	const std::string& getGlobalParameterName(int index) const;
+	void setGlobalParameterName(int index, const std::string& name);
+	double getGlobalParameterDefaultValue(int index) const;
+	void setGlobalParameterDefaultValue(int index, double defaultValue);
+};
+
+ 
 }

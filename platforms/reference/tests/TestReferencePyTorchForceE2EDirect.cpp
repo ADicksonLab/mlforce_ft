@@ -79,7 +79,7 @@ void testForce() {
 	fixedInputs.push_back(edge_type_sample) ;
 	fixedInputs.push_back(batch_sample) ;
 	
-	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_scriptE2EDirect.pt", pindices, weights, scale, fixedInputs, useAttr);
+	PyTorchForceE2EDirect* force = new PyTorchForceE2EDirect("tests/test_scriptE2EDirect.pt", pindices, weights, scale, fixedInputs, useAttr);
 	system.addForce(force);
 
 	// Compute the forces and energy.

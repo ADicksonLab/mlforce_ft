@@ -43,8 +43,8 @@ void PyTorchForceE2EDirectProxy::serialize(const void* object, SerializationNode
 	// fixedInputs[4] : edgeType (int, Ne)
 	// fixedInputs[5] : batch (int, N)
 
-	node.setFloatProperty("time", fixedInputs[0].item<double>());
-	node.setFloatProperty("sigma", fixedInputs[1].item<double>());
+	node.setDoubleProperty("time", fixedInputs[0].item<double>());
+	node.setDoubleProperty("sigma", fixedInputs[1].item<double>());
 
 	int n_g = fixedInputs[2].sizes()[0];
 	int n_e = fixedInputs[3].sizes()[1];
@@ -58,9 +58,9 @@ void PyTorchForceE2EDirectProxy::serialize(const void* object, SerializationNode
 
 	SerializationNode& edgeIndexNode = node.createChildNode("EdgeIndex");
 	for (int i = 0; i < 2; i++) {
-		SerializationNode&  indexNode = targetfeaturesNode.createChildNode("Indexes");
+		SerializationNode&  indexNode = edgeIndexNode.createChildNode("Indexes");
 		for (int j= 0; j < n_e; j++){
-		  indexNode.createChildNode("index").setIntProperty("value", fixedInputs[3][i][j].item<int>);
+		  indexNode.createChildNode("index").setIntProperty("value", fixedInputs[3][i][j].item<int>());
 		}
 	}
 
@@ -102,8 +102,8 @@ void* PyTorchForceE2EDirectProxy::deserialize(const SerializationNode& node) con
 	torch::Tensor edgeType = torch::empty({n_e}, torch::TensorOptions().dtype(torch::kInt64));
 	torch::Tensor batch = torch::empty({n_g}, torch::TensorOptions().dtype(torch::kInt64));
 
-	time[0] = node.getFloatProperty("time");
-	sigma[0] = node.getFloatProperty("sigma");
+	time[0] = node.getDoubleProperty("time");
+	sigma[0] = node.getDoubleProperty("sigma");
 
 	const SerializationNode& atomTypeNode = node.getChildNode("AtomType");
 	int idx = 0;

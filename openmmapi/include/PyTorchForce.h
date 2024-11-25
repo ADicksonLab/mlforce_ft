@@ -5,7 +5,9 @@
 #include "openmm/Force.h"
 #include <string>
 #include "internal/windowsExportPyTorch.h"
-#include<vector>
+#include <vector>
+#include <torch/torch.h>
+
 
 namespace PyTorchPlugin {
 

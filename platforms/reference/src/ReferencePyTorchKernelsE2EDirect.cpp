@@ -143,7 +143,7 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4},
 											   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
 	
-	vector<torch::jit::IValue> nnInputs = {}
+	vector<torch::jit::IValue> nnInputs = {};
 	if (useAttr) {
 	  // if using signals, pass them first
 	  std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);

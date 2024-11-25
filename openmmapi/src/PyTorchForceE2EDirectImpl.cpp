@@ -24,7 +24,7 @@ void PyTorchForceE2EDirectImpl::initialize(ContextImpl& context) {
     nnModule = torch::jit::load(owner.getFile());
   }
   catch (const c10::Error& e) {
-    std::cerr << "error loading the model\n";
+    std::cerr << "error loading model:" << owner.getFile() << "\n";
   }
   kernel = context.getPlatform().createKernel(CalcPyTorchForceE2EDirectKernel::Name(), context);
   kernel.getAs<CalcPyTorchForceE2EDirectKernel>().initialize(context.getSystem(), owner, nnModule);

@@ -92,6 +92,15 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 	signalForceWeights = force.getSignalForceWeights();
 	vector<torch::Tensor> tmpFixedInputs = force.getFixedInputs();
 	useAttr = force.getUseAttr();
+
+	// 	Assume:
+	// fixedInputs[0] : time (float, 1)
+	// fixedInputs[1] : sigma (float, 1)
+	// fixedInputs[2] : atomtype (int, N)
+	// fixedInputs[3] : edgeIndex (int, 2, Ne)
+	// fixedInputs[4] : edgeType (int, Ne)
+	// fixedInputs[5] : batch (int, N)
+
 	
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
@@ -103,10 +112,12 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 	}
 
 	fixedInputs = {};
-	for ( auto &ten : tmpFixedInputs ) {
-	  fixedInputs.push_back(ten.to(torch::kFloat32));
-	}
-	
+	fixedInputs.push_back(tmpFixedInputs[0].to(torch::kFloat32));	
+	fixedInputs.push_back(tmpFixedInputs[1].to(torch::kFloat32));
+	fixedInputs.push_back(tmpFixedInputs[2].to(torch::kInt64));
+	fixedInputs.push_back(tmpFixedInputs[3].to(torch::kInt64));
+	fixedInputs.push_back(tmpFixedInputs[4].to(torch::kInt64));
+	fixedInputs.push_back(tmpFixedInputs[5].to(torch::kInt64));
 
 }
 
@@ -161,9 +172,13 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	nnInputs.push_back(positionsTensor);
 	for ( auto &ten : fixedInputs ) {
 	  nnInputs.push_back(ten);
+	  std::cout << ten << ten.device();	  
 	}
 
+
 	auto get_diffusion_noise = nnModule.get_method("get_diffusion_noise");
+
+	//std::cout << "get_diffusion_noise device:" << get_diffusion_noise.device();
 	torch::Tensor noise = scale*get_diffusion_noise(nnInputs).toTensor();
 	
 	// get forces on positions as before

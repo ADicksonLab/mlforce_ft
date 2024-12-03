@@ -133,6 +133,8 @@ private:
   double scale;
   bool usePeriodic;
   bool useAttr;
+  torch::TensorOptions options_float, options_int;
+
 };
   
 } // namespace PyTorchPlugin

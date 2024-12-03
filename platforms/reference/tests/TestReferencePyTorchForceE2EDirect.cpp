@@ -56,20 +56,23 @@ void testForce() {
 	double scale = 1.0;
 	bool useAttr = false;
 
-	auto t_sample = torch::tensor({0.5}).to(torch::kCPU);
-	auto sigma_sample = torch::rand({5000}).to(torch::kCPU);
-	auto atom_type_sample = torch::tensor({8, 1, 6, 6, 6, 1, 1, 6, 6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1 }).to(torch::kCPU);
+	torch::TensorOptions options_float = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
+	torch::TensorOptions options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
+	
+	auto t_sample = torch::tensor({0.5}, options_float);
+	auto sigma_sample = torch::rand({5000}, options_float);
+	auto atom_type_sample = torch::tensor({8, 1, 6, 6, 6, 1, 1, 6, 6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1 }, options_int);
 	auto edge_index_sample = torch::tensor({
 											{ 0,  0,  1,  2,  2,  2,  2,  3,  3,  4,  4,  5,  6,  7,  7,  7,  7,  8,
 											  8,  8,  8,  9,  9,  9,  9, 10, 10, 10, 11, 12, 13, 14, 15, 16, 17, 18},
 											{ 1,  2,  0,  0,  3,  6,  7,  2,  4,  3,  5,  4,  2,  2,  8, 17, 18,  7,
 											  9, 15, 16,  8, 10, 13, 14,  9, 11, 12, 10, 10,  9,  9,  8,  8,  7, 7 }
-	  }).to(torch::kCPU);
+	  }, options_int);
 
 	auto edge_type_sample = torch::tensor({1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-										   1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1}).to(torch::kCPU);
+										   1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1}, options_int);
 
-	auto batch_sample = torch::tensor({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}).to(torch::kCPU);
+	auto batch_sample = torch::tensor({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, options_int);
 
 	std::vector<torch::Tensor> fixedInputs;
 	fixedInputs.push_back(t_sample) ;

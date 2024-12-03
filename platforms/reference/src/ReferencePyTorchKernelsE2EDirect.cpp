@@ -111,13 +111,16 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 	  boxVectorsTensor = boxVectorsTensor.to(torch::kFloat32);
 	}
 
+	options_float = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
+	options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
+
 	fixedInputs = {};
-	fixedInputs.push_back(tmpFixedInputs[0].to(torch::kFloat32));	
-	fixedInputs.push_back(tmpFixedInputs[1].to(torch::kFloat32));
-	fixedInputs.push_back(tmpFixedInputs[2].to(torch::kInt64));
-	fixedInputs.push_back(tmpFixedInputs[3].to(torch::kInt64));
-	fixedInputs.push_back(tmpFixedInputs[4].to(torch::kInt64));
-	fixedInputs.push_back(tmpFixedInputs[5].to(torch::kInt64));
+	fixedInputs.push_back(tmpFixedInputs[0].to(options_float));	
+	fixedInputs.push_back(tmpFixedInputs[1].to(options_float));
+	fixedInputs.push_back(tmpFixedInputs[2].to(options_int));
+	fixedInputs.push_back(tmpFixedInputs[3].to(options_int));
+	fixedInputs.push_back(tmpFixedInputs[4].to(options_int));
+	fixedInputs.push_back(tmpFixedInputs[5].to(options_int));
 
 }
 
@@ -137,13 +140,9 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 
 	int numGhostParticles = particleIndices.size();
 	
-	
-	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 3},
-												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
-
+	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 3}, options_float.requires_grad(true));
 
 	auto positions = positionsTensor.accessor<float, 2>();
-
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
 		positions[i][0] = MDPositions[particleIndices[i]][0];
@@ -151,8 +150,7 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 		positions[i][2] = MDPositions[particleIndices[i]][2];
 	}
 
-	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4},
-											   torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
+	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4}, options_float.requires_grad(true));
 	
 	vector<torch::jit::IValue> nnInputs = {};
 	if (useAttr) {
@@ -172,9 +170,7 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	nnInputs.push_back(positionsTensor);
 	for ( auto &ten : fixedInputs ) {
 	  nnInputs.push_back(ten);
-	  std::cout << ten << ten.device();	  
 	}
-
 
 	auto get_diffusion_noise = nnModule.get_method("get_diffusion_noise");
 
@@ -184,25 +180,25 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	// get forces on positions as before
 	if (includeForces) {
 
-		auto NNForce = noise.accessor<double, 2>();
+	  auto NNForce = noise.accessor<float, 2>();
 		
+	  for (int i = 0; i < numGhostParticles; i++) {
+		MDForce[particleIndices[i]][0] += double(NNForce[i][0]);
+		MDForce[particleIndices[i]][1] += double(NNForce[i][1]);
+		MDForce[particleIndices[i]][2] += double(NNForce[i][2]);
+	  }
+
+	  if (useAttr) {
+		// update the global variables derivatives
+		map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
+
 		for (int i = 0; i < numGhostParticles; i++) {
-		  MDForce[particleIndices[i]][0] += NNForce[i][0];
-		  MDForce[particleIndices[i]][1] += NNForce[i][1];
-		  MDForce[particleIndices[i]][2] += NNForce[i][2];
-		}
-
-		if (useAttr) {
-		  // update the global variables derivatives
-		  map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
-
-		  for (int i = 0; i < numGhostParticles; i++) {
-			for (int j=0; j<4; j++) { 
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNForce[i][j+3]*signalForceWeights[j];
-			}
+		  for (int j=0; j<4; j++) { 
+			energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += double(NNForce[i][j+3])*signalForceWeights[j];
 		  }
-			
 		}
+		
+	  }
 	}
 	return 0.0; // E2EDirect only updates forces, there is no energy
   }

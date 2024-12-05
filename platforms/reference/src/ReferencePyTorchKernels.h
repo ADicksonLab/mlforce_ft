@@ -130,7 +130,7 @@ private:
   torch::Tensor edge_idxs, edge_attrs, batch;
   std::vector<int> particleIndices;
   std::vector<double> signalForceWeights;
-  double scale;
+  double scale, beta_start, beta_end;
   bool usePeriodic;
   bool useAttr;
   torch::TensorOptions options_float, options_int;

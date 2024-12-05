@@ -3,6 +3,7 @@
 #include "openmm/OpenMMException.h"
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/reference/ReferencePlatform.h"
+#include <cmath>
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
@@ -70,7 +71,6 @@ static std::vector<double> extractContextVariables(ContextImpl& context, int num
 	return signals;
 }
 
-
 ReferenceCalcPyTorchForceE2EDirectKernel::~ReferenceCalcPyTorchForceE2EDirectKernel() {
 }
 
@@ -93,13 +93,16 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 	vector<torch::Tensor> tmpFixedInputs = force.getFixedInputs();
 	useAttr = force.getUseAttr();
 
+	beta_start = 1.0e-7;
+	beta_end = 2.0e-3;
+	
 	// 	Assume:
-	// fixedInputs[0] : time (float, 1)
-	// fixedInputs[1] : sigma (float, 1)
-	// fixedInputs[2] : atomtype (int, N)
-	// fixedInputs[3] : edgeIndex (int, 2, Ne)
-	// fixedInputs[4] : edgeType (int, Ne)
-	// fixedInputs[5] : batch (int, N)
+	// fixedInputs[0] : atomtype (int, N)
+	// fixedInputs[1] : edgeIndex (int, 2, Ne)
+	// fixedInputs[2] : edgeType (int, Ne)
+	// fixedInputs[3] : batch (int, N)
+
+	// nnInputs = {[attr], pos, t, *fixedInputs}
 
 	
 	usePeriodic = force.usesPeriodicBoundaryConditions();
@@ -116,11 +119,10 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 
 	fixedInputs = {};
 	fixedInputs.push_back(tmpFixedInputs[0].to(options_float));	
-	fixedInputs.push_back(tmpFixedInputs[1].to(options_float));
+	fixedInputs.push_back(tmpFixedInputs[1].to(options_int));
 	fixedInputs.push_back(tmpFixedInputs[2].to(options_int));
 	fixedInputs.push_back(tmpFixedInputs[3].to(options_int));
 	fixedInputs.push_back(tmpFixedInputs[4].to(options_int));
-	fixedInputs.push_back(tmpFixedInputs[5].to(options_int));
 
 }
 
@@ -134,7 +136,11 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
  */
 double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, bool includeForces, bool includeEnergy) {
 
-	// Get the  positions from the context (previous step)
+  // Get the current diffusion time from the context
+  double tim = context.getParameter("diffTime");
+  double beta = beta_start + (beta_end-beta_start)/(1.0 + exp(-tim));
+
+  // Get the  positions from the context (previous step)
 	vector<Vec3>& MDPositions = extractPositions(context);
 	vector<Vec3>& MDForce = extractForces(context);
 

@@ -60,7 +60,7 @@ void testForce() {
 	torch::TensorOptions options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
 	
 	auto t_sample = torch::tensor({0.5}, options_float);
-	auto sigma_sample = torch::rand({5000}, options_float);
+	//auto sigma_sample = torch::rand({5000}, options_float);
 	auto atom_type_sample = torch::tensor({8, 1, 6, 6, 6, 1, 1, 6, 6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1 }, options_int);
 	auto edge_index_sample = torch::tensor({
 											{ 0,  0,  1,  2,  2,  2,  2,  3,  3,  4,  4,  5,  6,  7,  7,  7,  7,  8,
@@ -76,7 +76,7 @@ void testForce() {
 
 	std::vector<torch::Tensor> fixedInputs;
 	fixedInputs.push_back(t_sample) ;
-	fixedInputs.push_back(sigma_sample) ;
+	//fixedInputs.push_back(sigma_sample) ;
 	fixedInputs.push_back(atom_type_sample) ;
 	fixedInputs.push_back(edge_index_sample) ;
 	fixedInputs.push_back(edge_type_sample) ;
@@ -85,11 +85,26 @@ void testForce() {
 	PyTorchForceE2EDirect* force = new PyTorchForceE2EDirect("tests/test_scriptE2EDirect.pt", pindices, weights, scale, fixedInputs, useAttr);
 	system.addForce(force);
 
+	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
+	cnb_force->addPerParticleParameter("sigma");
+	cnb_force->addPerParticleParameter("epsilon");
+
+	vector<double> param = {0.02, 2.0};
+	for (int i = 0; i < numParticles; i++) {
+	  cnb_force->addParticle(param);
+	}
+	cnb_force->addGlobalParameter("diffTime", 0.5);
+
+	system.addForce(cnb_force);
+
+
+	
 	// Compute the forces and energy.
 
 	VerletIntegrator integ(1.0);
 	Platform& platform = Platform::getPlatformByName("Reference");
 	Context context(system, integ, platform);
+	context.setParameter("diffTime",0.5);
 	context.setPositions(positions);
 	State state = context.getState(State::Energy | State::Forces);
 		

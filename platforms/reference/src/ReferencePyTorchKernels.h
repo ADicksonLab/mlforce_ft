@@ -127,13 +127,14 @@ private:
   torch::jit::script::Module nnModule;
   torch::Tensor boxVectorsTensor;
   std::vector<torch::Tensor> fixedInputs;
-  torch::Tensor edge_idxs, edge_attrs, batch;
   std::vector<int> particleIndices;
   std::vector<double> signalForceWeights;
-  double scale, beta_start, beta_end;
+  double scale;
   bool usePeriodic;
   bool useAttr;
   torch::TensorOptions options_float, options_int;
+  int num_diff_steps;
+  std::vector<double> sigma;
 
 };
   

@@ -93,8 +93,18 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 	vector<torch::Tensor> tmpFixedInputs = force.getFixedInputs();
 	useAttr = force.getUseAttr();
 
-	beta_start = 1.0e-7;
-	beta_end = 2.0e-3;
+	double beta_start = 1.0e-7;
+	double beta_end = 2.0e-3;
+	num_diff_steps = 100;
+
+	sigma = {};
+	double alpha = 1.0;
+	for (int i = 0; i < num_diff_steps; i++) {
+	  double tim = double(i)/double(num_diff_steps);
+	  double beta = beta_start + (beta_end-beta_start)/(1.0 + exp(-tim));
+	  alpha *= (1.0 - beta);
+	  sigma.push_back(sqrt((1.0 - alpha)/alpha));
+	}
 	
 	// 	Assume:
 	// fixedInputs[0] : atomtype (int, N)
@@ -138,8 +148,15 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 
   // Get the current diffusion time from the context
   double tim = context.getParameter("diffTime");
-  double beta = beta_start + (beta_end-beta_start)/(1.0 + exp(-tim));
-
+  int tim_idx = int(floor(tim*num_diff_steps));
+  if (tim_idx < 0) {
+	tim_idx = 0;
+  } else if (tim_idx >= num_diff_steps) {
+	tim_idx = num_diff_steps - 1;
+  }
+ 
+  double sigfac = sigma[tim_idx]*0.01;
+  
   // Get the  positions from the context (previous step)
 	vector<Vec3>& MDPositions = extractPositions(context);
 	vector<Vec3>& MDForce = extractForces(context);
@@ -181,7 +198,7 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	auto get_diffusion_noise = nnModule.get_method("get_diffusion_noise");
 
 	//std::cout << "get_diffusion_noise device:" << get_diffusion_noise.device();
-	torch::Tensor noise = scale*get_diffusion_noise(nnInputs).toTensor();
+	torch::Tensor noise = sigfac*scale*get_diffusion_noise(nnInputs).toTensor();
 	
 	// get forces on positions as before
 	if (includeForces) {

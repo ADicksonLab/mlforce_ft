@@ -13,14 +13,18 @@ PyTorchForceE2EDirect::PyTorchForceE2EDirect(const std::string& file,
 											 const std::vector<int> particleIndices,
 											 const std::vector<double> signalForceWeights,
 											 const double scale,
-											 const std::vector<torch::Tensor> fixedInputs,
+											 const std::vector<int> atomTypes,
+											 const std::vector<std::vector<int>> edgeIndices,
+											 const std::vector<int> edgeTypes,
 											 const bool useAttr):
 
   file(file),
   particleIndices(particleIndices),
   signalForceWeights(signalForceWeights),
   scale(scale),
-  fixedInputs(fixedInputs),
+  atomTypes(atomTypes),
+  edgeIndices(edgeIndices),
+  edgeTypes(edgeTypes),
   useAttr(useAttr),
   usePeriodic(false)
   {
@@ -32,10 +36,15 @@ const string& PyTorchForceE2EDirect::getFile() const {
 const double PyTorchForceE2EDirect::getScale() const {
   return scale;
 }
-const std::vector<torch::Tensor> PyTorchForceE2EDirect::getFixedInputs() const {
-  return fixedInputs;
+const std::vector<int> PyTorchForceE2EDirect::getAtomTypes() const {
+  return atomTypes;
 }
-
+const std::vector<std::vector<int>> PyTorchForceE2EDirect::getEdgeIndices() const {
+  return edgeIndices;
+}
+const std::vector<int> PyTorchForceE2EDirect::getEdgeTypes() const {
+  return edgeTypes;
+}
 const bool PyTorchForceE2EDirect::getUseAttr() const {
   return useAttr;
 }

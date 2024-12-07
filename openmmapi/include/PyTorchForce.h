@@ -6,7 +6,6 @@
 #include <string>
 #include "internal/windowsExportPyTorch.h"
 #include <vector>
-#include <torch/torch.h>
 
 
 namespace PyTorchPlugin {
@@ -262,14 +261,20 @@ public:
 						std::vector<int> particleIndices,
 						std::vector<double> signalForceWeights,
 						double scale,
-						std::vector<torch::Tensor> fixedInputs,
+						std::vector<int> atomTypes,
+						std::vector<std::vector<int>> edgeIndices,
+						std::vector<int> edgeTypes,
 						bool useAttr);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
 	const std::string& getFile() const;
 	const double getScale() const;
-	const std::vector<torch::Tensor> getFixedInputs() const;
+	const std::vector<int> getFixedInputs() const;
+	const std::vector<int> getAtomTypes() const;
+	const std::vector<std::vector<int>> getEdgeIndices() const;
+	const std::vector<int> getEdgeTypes() const;
+	
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;
 	const bool getUseAttr() const;
@@ -329,7 +334,9 @@ private:
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale;
-	std::vector<torch::Tensor> fixedInputs;
+	std::vector<int> atomTypes;
+	std::vector<int> edgeTypes;
+	std::vector<std::vector<int>> edgeIndices;
 	bool useAttr;
 	bool usePeriodic;
 	std::vector<GlobalParameterInfo> globalParameters;

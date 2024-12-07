@@ -5,6 +5,7 @@
 #include <map>
 #include <cuda_runtime_api.h>
 #include <fstream>
+#include <assert.h>
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
@@ -87,9 +88,12 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
 	scale = force.getScale();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
-	vector<torch::Tensor> tmpFixedInputs = force.getFixedInputs();
+	vector<int> tmpAtomTypes = force.getAtomTypes();
+	vector<vector<int>> tmpEdgeIdxs = force.getEdgeIndices();
+	vector<int> tmpEdgeTypes = force.getEdgeTypes();
 	useAttr = force.getUseAttr();
-
+	usePeriodic = force.usesPeriodicBoundaryConditions();
+	
 	double beta_start = 1.0e-7;
 	double beta_end = 2.0e-3;
 	num_diff_steps = 100;
@@ -102,19 +106,44 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
 	  alpha *= (1.0 - beta);
 	  sigma.push_back(sqrt((1.0 - alpha)/alpha));
 	}
-	
-	// 	Assume:
-	// fixedInputs[0] : atomtype (int, N)
-	// fixedInputs[1] : edgeIndex (int, 2, Ne)
-	// fixedInputs[2] : edgeType (int, Ne)
-	// fixedInputs[3] : batch (int, N)
 
-	// nnInputs = {[attr], pos, t, *fixedInputs}
-
-	
-	usePeriodic = force.usesPeriodicBoundaryConditions();
+	int n_edges = tmpEdgeTypes.size();
 	int numGhostParticles = particleIndices.size();
+	assert(tmpAtomTypes.size() == numGhostParticles);
+	assert(tmpEdgeIdxs.size() == 2);
+	assert(tmpEdgeIdxs[0].size() == n_edges);
+	assert(tmpEdgeIdxs[1].size() == n_edges);
 
+	options_float = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
+	options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
+
+	// define tensors used for model inputs
+	torch::Tensor atom_types_tensor = torch::empty({static_cast<int64_t>(numGhostParticles)}, options_int);
+	auto at_acc = atom_types_tensor.accessor<int64_t, 1>();
+	
+	//Copy data to the tensor
+	for (int i = 0; i < numGhostParticles; i++) {
+	  at_acc[i] = tmpAtomTypes[i];
+	}
+
+	torch::Tensor edge_idxs_tensor = torch::empty({2, static_cast<int64_t>(n_edges)}, options_int);
+	auto edge_acc = edge_idxs_tensor.accessor<int64_t, 2>();
+	torch::Tensor edge_types_tensor = torch::empty({static_cast<int64_t>(n_edges)}, options_int);
+	auto et_acc = edge_types_tensor.accessor<int64_t, 1>();
+
+	//Copy data to the tensors
+	for (int i = 0; i < n_edges; i++) {
+	  edge_acc[0][i] = tmpEdgeIdxs[0][i];
+	  edge_acc[1][i] = tmpEdgeIdxs[1][i];
+	  et_acc[i] = tmpEdgeTypes[i];
+	}
+
+	torch::Tensor batch = torch::zeros({numGhostParticles}, options_int);
+
+	//                             |------------- fixedInputs ---------|
+	// nnInputs = {[attr], pos, t, atomTypes, edgeIdxs, edgeTypes, batch}
+	fixedInputs = {atom_types_tensor, edge_idxs_tensor, edge_types_tensor, batch};
+	
 	if (usePeriodic) {
 	  int64_t boxVectorsDims[] = {3, 3};
 	  boxVectorsTensor = torch::zeros(boxVectorsDims);
@@ -134,20 +163,6 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
     CUcontext ctx;
     CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");
     assert(primaryContext == ctx); // Check that PyTorch haven't messed up the context stack
-
-	torch::TensorOptions options_cpu = torch::TensorOptions().
-	  device(torch::kCPU).
-	  dtype(cu.getUseDoublePrecision() ? torch::kFloat64 : torch::kFloat32);
-
-	options_float = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
-	options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
-
-	fixedInputs = {};
-	fixedInputs.push_back(tmpFixedInputs[0].to(options_float));	
-	fixedInputs.push_back(tmpFixedInputs[1].to(options_int));
-	fixedInputs.push_back(tmpFixedInputs[2].to(options_int));
-	fixedInputs.push_back(tmpFixedInputs[3].to(options_int));
-	fixedInputs.push_back(tmpFixedInputs[4].to(options_int));
 
     ContextSelector selector(cu); // Switch to the OpenMM context
     map<string, string> defines;
@@ -180,7 +195,11 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	} else if (tim_idx >= num_diff_steps) {
 	  tim_idx = num_diff_steps - 1;
 	}
- 
+
+	torch::Tensor timTensor = torch::empty({1}, options_float);
+	auto tim_acc = timTensor.accessor<float, 1>();
+	tim_acc[0] = tim;
+
 	double sigfac = sigma[tim_idx]*0.01;
 	
     vector<Vec3> MDPositions;
@@ -214,6 +233,7 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	}
 	
 	nnInputs.push_back(positionsTensor);
+	nnInputs.push_back(timTensor);
 	for ( auto &ten : fixedInputs ) {
 	  nnInputs.push_back(ten);
 	}

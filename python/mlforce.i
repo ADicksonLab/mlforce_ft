@@ -12,7 +12,6 @@
 #include "OpenMMDrude.h"
 #include "openmm/RPMDIntegrator.h"
 #include "openmm/RPMDMonteCarloBarostat.h"
-#include <torch/torch.h>
 %}
 namespace std {
   %template(vectori) vector<int>;
@@ -87,12 +86,16 @@ public:
 						  const std::vector<int> particleIndices,
 						  const std::vector<double> signalForceWeights,
 						  double scale,
-						  const std::vector<torch::Tensor> fixedInputs,
+						  const std::vector<int> atomTypes,
+						  const std::vector<std::vector<int>> edgeIndices,
+						  const std::vector<int> edgeTypes,
 						  bool useAttr);
 
 	const std::string& getFile() const;
 	const double getScale() const;
-	const std::vector<torch::Tensor> getFixedInputs() const;
+	const std::vector<int> getAtomTypes() const;
+	const std::vector<std::vector<int>> getEdgeIndices() const;
+	const std::vector<int> getEdgeTypes() const;
 	const bool getUseAttr() const;
 	const std::vector<int> getParticleIndices() const;
 	const std::vector<double> getSignalForceWeights() const;

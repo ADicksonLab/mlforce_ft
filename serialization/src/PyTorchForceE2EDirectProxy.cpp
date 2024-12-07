@@ -34,44 +34,31 @@ void PyTorchForceE2EDirectProxy::serialize(const void* object, SerializationNode
 	   signalForceWeightsNode.createChildNode("Weight").setDoubleProperty("value", signalForceWeights[i]);
 	}
 
-	std::vector<torch::Tensor> fixedInputs = force.getFixedInputs();
-	// Assume:
-	// fixedInputs[0] : time (float, 1)
-	// fixedInputs[1] : sigma (float, 1)
-	// fixedInputs[2] : atomtype (int, N)
-	// fixedInputs[3] : edgeIndex (int, 2, Ne)
-	// fixedInputs[4] : edgeType (int, Ne)
-	// fixedInputs[5] : batch (int, N)
+	std::vector<int> atomTypes = force.getAtomTypes();
+	std::vector<std::vector<int>> edgeIdxs = force.getEdgeIndices();
+	std::vector<int> edgeTypes = force.getEdgeTypes();
 
-	node.setDoubleProperty("time", fixedInputs[0].item<double>());
-	node.setDoubleProperty("sigma", fixedInputs[1].item<double>());
-
-	int n_g = fixedInputs[2].sizes()[0];
-	int n_e = fixedInputs[3].sizes()[1];
+	int n_g = atomTypes.size();
+	int n_e = edgeTypes.size();
 	node.setIntProperty("n_ghosts",n_g);
 	node.setIntProperty("n_edges",n_e);
 	
 	SerializationNode&  atomTypeNode = node.createChildNode("AtomType");
 	for (int i = 0; i < n_g; i++) {
-	  atomTypeNode.createChildNode("type").setIntProperty("value", fixedInputs[2][i].item<int>());
+	  atomTypeNode.createChildNode("type").setIntProperty("value", atomTypes[i]);
 	}
 
 	SerializationNode& edgeIndexNode = node.createChildNode("EdgeIndex");
 	for (int i = 0; i < 2; i++) {
 		SerializationNode&  indexNode = edgeIndexNode.createChildNode("Indexes");
 		for (int j= 0; j < n_e; j++){
-		  indexNode.createChildNode("index").setIntProperty("value", fixedInputs[3][i][j].item<int>());
+		  indexNode.createChildNode("index").setIntProperty("value", edgeIdxs[i][j]);
 		}
 	}
 
 	SerializationNode&  edgeTypeNode = node.createChildNode("EdgeType");
 	for (int i = 0; i < n_e; i++) {
-	  edgeTypeNode.createChildNode("type").setIntProperty("value", fixedInputs[4][i].item<int>());
-	}
-
-	SerializationNode&  BatchNode = node.createChildNode("Batch");
-	for (int i = 0; i < n_g; i++) {
-	  BatchNode.createChildNode("batch").setIntProperty("value", fixedInputs[5][i].item<int>());
+	  edgeTypeNode.createChildNode("type").setIntProperty("value", edgeTypes[i]);
 	}
 
 }
@@ -95,55 +82,36 @@ void* PyTorchForceE2EDirectProxy::deserialize(const SerializationNode& node) con
 	int n_g = node.getIntProperty("n_ghosts");
 	int n_e = node.getIntProperty("n_edges");
 	
-	torch::Tensor time = torch::empty({1},torch::TensorOptions().dtype(torch::kFloat32));
-	torch::Tensor sigma = torch::empty({1}, torch::TensorOptions().dtype(torch::kFloat32));
-	torch::Tensor atomType = torch::empty({n_g}, torch::TensorOptions().dtype(torch::kInt64));
-	torch::Tensor edgeIndex = torch::empty({2,n_e}, torch::TensorOptions().dtype(torch::kInt64));
-	torch::Tensor edgeType = torch::empty({n_e}, torch::TensorOptions().dtype(torch::kInt64));
-	torch::Tensor batch = torch::empty({n_g}, torch::TensorOptions().dtype(torch::kInt64));
-
-	time[0] = node.getDoubleProperty("time");
-	sigma[0] = node.getDoubleProperty("sigma");
-
+	std::vector<int> atomTypes;
+	std::vector<std::vector<int>> edgeIdxs;
+	std::vector<int> edgeTypes;
+	
 	const SerializationNode& atomTypeNode = node.getChildNode("AtomType");
-	int idx = 0;
 	for (auto &type: atomTypeNode.getChildren()) {
-	  atomType[idx] = type.getIntProperty("value");
-	  idx += 1;
+	  atomTypes.push_back(type.getIntProperty("value"));
 	}
 
 	const SerializationNode& edgeIndexNode = node.getChildNode("EdgeIndex");
-	idx = 0;
 	for (auto &indexNode: edgeIndexNode.getChildren()) {
-	  int idx2 = 0;
+	  std::vector<int> tmp;
 	  for (auto &index: indexNode.getChildren()) {
-		edgeIndex[idx,idx2] = index.getIntProperty("value");
-		idx2 += 1;
+		tmp.push_back(index.getIntProperty("value"));
 	  }
-	  idx += 1;
+	  edgeIdxs.push_back(tmp);
 	}
 	
 	const SerializationNode& edgeTypeNode = node.getChildNode("EdgeType");
-	idx = 0;
 	for (auto &type: edgeTypeNode.getChildren()) {
-	  edgeType[idx] = type.getIntProperty("value");
-	  idx += 1;
+	  edgeTypes.push_back(type.getIntProperty("value"));
 	}
 
-	const SerializationNode& BatchNode = node.getChildNode("Batch");
-	idx = 0;
-	for (auto &batchnode: BatchNode.getChildren()) {
-	  batch[idx] = batchnode.getIntProperty("value");
-	  idx += 1;
-	}
-
-	std::vector<torch::Tensor> fixedInputs = {time, sigma, atomType, edgeIndex, edgeType, batch};
-	
 	PyTorchForceE2EDirect* force = new PyTorchForceE2EDirect(node.getStringProperty("file"),
 															 indices,
 															 signalForceWeights,
 															 node.getDoubleProperty("scale"),
-															 fixedInputs,
+															 atomTypes,
+															 edgeIdxs,
+															 edgeTypes,
 															 node.getBoolProperty("useAttr"));
 												 
 	 if (node.hasProperty("forceGroup"))

@@ -56,33 +56,23 @@ void testForce() {
 	double scale = 1.0;
 	bool useAttr = false;
 
-	torch::TensorOptions options_float = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
-	torch::TensorOptions options_int = torch::TensorOptions().device(torch::kCPU).dtype(torch::kInt64);
-	
-	auto t_sample = torch::tensor({0.5}, options_float);
-	//auto sigma_sample = torch::rand({5000}, options_float);
-	auto atom_type_sample = torch::tensor({8, 1, 6, 6, 6, 1, 1, 6, 6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1 }, options_int);
-	auto edge_index_sample = torch::tensor({
-											{ 0,  0,  1,  2,  2,  2,  2,  3,  3,  4,  4,  5,  6,  7,  7,  7,  7,  8,
+	std::vector<int> atom_type_sample = {8, 1, 6, 6, 6, 1, 1, 6, 6, 6, 6, 8, 1, 1, 1, 1, 1, 1, 1 };
+	std::vector<std::vector<int>> edge_index_sample = {{ 0,  0,  1,  2,  2,  2,  2,  3,  3,  4,  4,  5,  6,  7,  7,  7,  7,  8,
 											  8,  8,  8,  9,  9,  9,  9, 10, 10, 10, 11, 12, 13, 14, 15, 16, 17, 18},
 											{ 1,  2,  0,  0,  3,  6,  7,  2,  4,  3,  5,  4,  2,  2,  8, 17, 18,  7,
-											  9, 15, 16,  8, 10, 13, 14,  9, 11, 12, 10, 10,  9,  9,  8,  8,  7, 7 }
-	  }, options_int);
-
-	auto edge_type_sample = torch::tensor({1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-										   1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1}, options_int);
-
-	auto batch_sample = torch::tensor({0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, options_int);
-
-	std::vector<torch::Tensor> fixedInputs;
-	fixedInputs.push_back(t_sample) ;
-	//fixedInputs.push_back(sigma_sample) ;
-	fixedInputs.push_back(atom_type_sample) ;
-	fixedInputs.push_back(edge_index_sample) ;
-	fixedInputs.push_back(edge_type_sample) ;
-	fixedInputs.push_back(batch_sample) ;
+											  9, 15, 16,  8, 10, 13, 14,  9, 11, 12, 10, 10,  9,  9,  8,  8,  7, 7 }};
 	
-	PyTorchForceE2EDirect* force = new PyTorchForceE2EDirect("tests/test_scriptE2EDirect.pt", pindices, weights, scale, fixedInputs, useAttr);
+	std::vector<int> edge_type_sample = {1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	  1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1};
+	  
+	PyTorchForceE2EDirect* force = new PyTorchForceE2EDirect("tests/test_scriptE2EDirect.pt",
+															 pindices,
+															 weights,
+															 scale,
+															 atom_type_sample,
+															 edge_index_sample,
+															 edge_type_sample,
+															 useAttr);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -97,8 +87,6 @@ void testForce() {
 
 	system.addForce(cnb_force);
 
-
-	
 	// Compute the forces and energy.
 
 	VerletIntegrator integ(1.0);

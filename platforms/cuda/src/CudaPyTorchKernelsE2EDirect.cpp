@@ -94,19 +94,6 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
 	useAttr = force.getUseAttr();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	
-	double beta_start = 1.0e-7;
-	double beta_end = 2.0e-3;
-	num_diff_steps = 100;
-
-	sigma = {};
-	double alpha = 1.0;
-	for (int i = 0; i < num_diff_steps; i++) {
-	  double tim = double(i)/double(num_diff_steps);
-	  double beta = beta_start + (beta_end-beta_start)/(1.0 + exp(-tim));
-	  alpha *= (1.0 - beta);
-	  sigma.push_back(sqrt((1.0 - alpha)/alpha));
-	}
-
 	int n_edges = tmpEdgeTypes.size();
 	int numGhostParticles = particleIndices.size();
 	assert(tmpAtomTypes.size() == numGhostParticles);
@@ -187,21 +174,6 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
     int numParticles = cu.getNumAtoms();
 	int numGhostParticles = particleIndices.size();
 
-	// Get the current diffusion time from the context
-	double tim = context.getParameter("diffTime");
-	int tim_idx = int(floor(tim*num_diff_steps));
-	if (tim_idx < 0) {
-	  tim_idx = 0;
-	} else if (tim_idx >= num_diff_steps) {
-	  tim_idx = num_diff_steps - 1;
-	}
-
-	torch::Tensor timTensor = torch::empty({1}, options_float);
-	auto tim_acc = timTensor.accessor<float, 1>();
-	tim_acc[0] = tim;
-
-	double sigfac = sigma[tim_idx]*0.01;
-	
     vector<Vec3> MDPositions;
     context.getPositions(MDPositions);
 
@@ -210,9 +182,9 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	auto positions = positionsTensor.accessor<float, 2>();
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-		positions[i][0] = MDPositions[particleIndices[i]][0];
-		positions[i][1] = MDPositions[particleIndices[i]][1];
-		positions[i][2] = MDPositions[particleIndices[i]][2];
+		positions[i][0] = MDPositions[particleIndices[i]][0] *10;
+		positions[i][1] = MDPositions[particleIndices[i]][1] *10;
+		positions[i][2] = MDPositions[particleIndices[i]][2] *10;
 	}
 
 	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4}, options_float.requires_grad(true));
@@ -231,6 +203,8 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	
 	  nnInputs.push_back(signalsTensor);
 	}
+
+	torch::Tensor timTensor = torch::ones({1}, options_float);
 	
 	nnInputs.push_back(positionsTensor);
 	nnInputs.push_back(timTensor);
@@ -242,8 +216,9 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
 
 	auto get_diffusion_noise = nnModule.get_method("get_diffusion_noise");
-	torch::Tensor noise = sigfac*scale*get_diffusion_noise(nnInputs).toTensor();
+	torch::Tensor noise = scale*get_diffusion_noise(nnInputs).toTensor();
 
+	//std::cout << "tim_idx, sigfac, mean noise:" << tim_idx << " " << sigfac << " " << torch::pow(noise, 2).mean() << "\n";
 	// get forces on positions as before
 	if (includeForces) {
 

@@ -142,8 +142,6 @@ private:
     std::vector<torch::Tensor> fixedInputs;
     bool useAttr;
     torch::TensorOptions options_float, options_int;
-    int num_diff_steps;
-    std::vector<double> sigma;
   
     CUfunction copyInputsKernel, addForcesKernel;
     CUcontext primaryContext;

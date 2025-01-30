@@ -133,8 +133,6 @@ private:
   bool usePeriodic;
   bool useAttr;
   torch::TensorOptions options_float, options_int;
-  int num_diff_steps;
-  std::vector<double> sigma;
 
 };
   

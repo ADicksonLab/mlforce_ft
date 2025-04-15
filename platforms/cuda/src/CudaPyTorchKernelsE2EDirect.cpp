@@ -93,22 +93,7 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
 	vector<int> tmpEdgeTypes = force.getEdgeTypes();
 	useAttr = force.getUseAttr();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
-
-	double beta_start = 1.0e-7;
-	double beta_end = 2.0e-3;
-	num_diff_steps = 5000; //100;
-
-	sigma = {};
-	double alpha = 1.0;
-	for (int i = 0; i < num_diff_steps; i++) {
-	  double tim = double(i)/double(num_diff_steps);
-	  double beta = beta_start + (beta_end- beta_start)/(1.0 + exp(-tim));
-	  alpha *= (1.0 - beta);
-	  sigma.push_back(sqrt((1.0 - alpha)/alpha));
-	}
-
-	// std::cout<<"sigma:"<<sigma<<std::endl;
-
+	
 	int n_edges = tmpEdgeTypes.size();
 	int numGhostParticles = particleIndices.size();
 	assert(tmpAtomTypes.size() == numGhostParticles);
@@ -143,7 +128,7 @@ void CudaCalcPyTorchForceE2EDirectKernel::initialize(const System& system, const
 	torch::Tensor batch = torch::zeros({numGhostParticles}, options_int);
 
 	//                             |------------- fixedInputs ---------|
-	// nnInputs = {[attr], pos, t, atomTypes, edgeIdxs, edgeTypes, batch}
+	// nnInputs = {[attr], pos, t, atomTypes, edgeIdxs, edgeTypes, batch, useGlobal}
 	fixedInputs = {atom_types_tensor, edge_idxs_tensor, edge_types_tensor, batch};
 	
 	if (usePeriodic) {
@@ -189,6 +174,10 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
     int numParticles = cu.getNumAtoms();
 	int numGhostParticles = particleIndices.size();
 
+	double useGlobal = context.getParameter("use_global");
+	//torch::Tensor useGlobalTensor = torch::Tensor({useGlobal},options_float);
+	torch::Tensor useGlobalTensor = torch::ones({1}, options_float) * useGlobal;
+
     vector<Vec3> MDPositions;
     context.getPositions(MDPositions);
 
@@ -197,16 +186,12 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	auto positions = positionsTensor.accessor<float, 2>();
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-
 		positions[i][0] = MDPositions[particleIndices[i]][0] *10;
 		positions[i][1] = MDPositions[particleIndices[i]][1] *10;
 		positions[i][2] = MDPositions[particleIndices[i]][2] *10;
-
-
 	}
 
 	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4}, options_float.requires_grad(true));
-	// std::cout<< "signal tensors!:"<< signalsTensor << std::endl;
 	
 	vector<torch::jit::IValue> nnInputs = {};
 	if (useAttr) {
@@ -230,6 +215,7 @@ double CudaCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context,bool in
 	for ( auto &ten : fixedInputs ) {
 	  nnInputs.push_back(ten);
 	}
+	nnInputs.push_back(useGlobalTensor);
 
 	// synchronizing the current context before switching to PyTorch
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");

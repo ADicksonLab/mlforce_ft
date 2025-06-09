@@ -109,5 +109,45 @@ public:
 	void setGlobalParameterDefaultValue(int index, double defaultValue);
 };
 
+class PyTorchForceE2EDiffConf : public OpenMM::Force {
+	public:
+		PyTorchForceE2EDiffConf(const std::string& file,
+							  const std::vector<int> particleIndices,
+							  const std::vector<double> signalForceWeights,
+							  double scale,
+							  const std::vector<int> atoms,
+							  const std::vector<std::vector<int>> bonds,
+							  const std::vector<std::vector<int>> angles,
+							  const std::vector<std::vector<int>> propers,
+							  const std::vector<std::vector<int>> impropers,
+							  const std::vector<std::vector<int>> pairs,
+							  const std::vector<std::vector<int>> tetras,
+							  const std::vector<std::vector<int>> cistrans,
+							  const std::vector<std::vector<float>> encoding
+							);
+	
+		const std::string& getFile() const;
+		const double getScale() const;
+		const std::vector<int> getAtomTypes() const;
+		const std::vector<std::vector<int>> getEdgeIndices() const;
+		const std::vector<std::vector<int>> getAngles() const;
+		const std::vector<std::vector<int>> getPropers() const;
+		const std::vector<std::vector<int>> getImpropers() const;
+		const std::vector<std::vector<int>> getPairs() const;
+		const std::vector<std::vector<int>> getTetras() const;
+		const std::vector<std::vector<int>> getCisTrans() const;
+		const std::vector<std::vector<float>> getEncoding() const;
+		
+		const std::vector<int> getParticleIndices() const;
+		const std::vector<double> getSignalForceWeights() const;
+		void setUsesPeriodicBoundaryConditions(bool periodic);
+		bool usesPeriodicBoundaryConditions() const;
+		int getNumGlobalParameters() const;
+		int addGlobalParameter(const std::string& name, double defaultValue);
+		const std::string& getGlobalParameterName(int index) const;
+		void setGlobalParameterName(int index, const std::string& name);
+		double getGlobalParameterDefaultValue(int index) const;
+		void setGlobalParameterDefaultValue(int index, double defaultValue);
+	};
  
 }

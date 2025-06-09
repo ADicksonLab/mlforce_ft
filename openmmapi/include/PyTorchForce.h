@@ -356,7 +356,126 @@ public:
     }
 };
 
-  
+/**
+ * This class implements forces that are defined by user-supplied neural networks.
+ * It uses the PyTorch library to perform the computations. */
+
+ class OPENMM_EXPORT_PYTORCH PyTorchForceE2EDiffConf : public OpenMM::Force {
+	public:
+		/**
+		 * Create a PyTorchForceE2EDiffConf.  The network is defined by  Pytorch and saved
+		 * to a .pt or .pth file
+		 *
+		 * @param file   the path to the file containing the network
+		 */
+	  PyTorchForceE2EDiffConf(const std::string& file, 
+							std::vector<int> particleIndices,
+							std::vector<double> signalForceWeights,
+							double scale,
+							std::vector<int> atoms,
+							std::vector<std::vector<int>> bonds,
+							std::vector<std::vector<int>> angles,
+							std::vector<std::vector<int>> propers,
+							std::vector<std::vector<int>> impropers,
+							std::vector<std::vector<int>> pairs,
+							std::vector<std::vector<int>> tetras,
+							std::vector<std::vector<int>> cistrans,
+							std::vector<std::vector<float>> encoding);
+		/**
+		 * Get the path to the file containing the graph.
+		 */
+		const std::string& getFile() const;
+		const double getScale() const;
+		const std::vector<int> getParticleIndices() const;
+		const std::vector<double> getSignalForceWeights() const;
+		const std::vector<int> getAtomTypes() const;
+		const std::vector<std::vector<int>> getEdgeIndices() const;
+		const std::vector<std::vector<int>> getAngles() const;
+		const std::vector<std::vector<int>> getPropers() const;
+		const std::vector<std::vector<int>> getImpropers() const;
+		const std::vector<std::vector<int>> getPairs() const;
+		const std::vector<std::vector<int>> getTetras() const;
+		const std::vector<std::vector<int>> getCisTrans() const;
+		const std::vector<std::vector<float>> getEncoding() const;
+
+
+		void setUsesPeriodicBoundaryConditions(bool periodic);
+		/**
+		 * Get whether this force makes use of periodic boundary conditions.
+		 */
+		bool usesPeriodicBoundaryConditions() const;
+	
+		/**
+		 * Get the number of global parameters that the interaction depends on.
+		 */
+		int getNumGlobalParameters() const;
+		/**
+		 * Add a new global parameter that the interaction may depend on.  The default value provided to
+		 * this method is the initial value of the parameter in newly created Contexts.  You can change
+		 * the value at any time by calling setParameter() on the Context.
+		 *
+		 * @param name             the name of the parameter
+		 * @param defaultValue     the default value of the parameter
+		 * @return the index of the parameter that was added
+		 */
+		int addGlobalParameter(const std::string& name, double defaultValue);
+		/**
+		 * Get the name of a global parameter.
+		 *
+		 * @param index     the index of the parameter for which to get the name
+		 * @return the parameter name
+		 */
+		const std::string& getGlobalParameterName(int index) const;
+		/**
+		 * Set the name of a global parameter.
+		 *
+		 * @param index          the index of the parameter for which to set the name
+		 * @param name           the name of the parameter
+		 */
+		void setGlobalParameterName(int index, const std::string& name);
+		/**
+		 * Get the default value of a global parameter.
+		 *
+		 * @param index     the index of the parameter for which to get the default value
+		 * @return the parameter default value
+		 */
+		double getGlobalParameterDefaultValue(int index) const;
+		/**
+		 * Set the default value of a global parameter.
+		 *
+		 * @param index          the index of the parameter for which to set the default value
+		 * @param defaultValue   the default value of the parameter
+		 */
+		void setGlobalParameterDefaultValue(int index, double defaultValue);
+	protected:
+		OpenMM::ForceImpl* createImpl() const;
+	private:
+		class GlobalParameterInfo;
+		std::string file;
+		std::vector<int> particleIndices;
+		std::vector<double> signalForceWeights;
+		double scale;
+		std::vector<int> atoms;
+		std::vector<std::vector<int>> bonds, angles, propers, impropers, pairs, tetras, cistrans;
+		std::vector<std::vector<float>> encoding;
+
+		bool usePeriodic;
+		std::vector<GlobalParameterInfo> globalParameters;
+	};
+	
+	/**
+	 * This is an internal class used to record information about a global parameter.
+	 * @private
+	 */
+	class PyTorchForceE2EDiffConf::GlobalParameterInfo {
+	public:
+		std::string name;
+		double defaultValue;
+		GlobalParameterInfo() {
+		}
+		GlobalParameterInfo(const std::string& name, double defaultValue) : name(name), defaultValue(defaultValue) {
+		}
+	};
 } // namespace PyTorchPlugin
 
 #endif /*OPENMM_PYTORCHFORCE_H_*/

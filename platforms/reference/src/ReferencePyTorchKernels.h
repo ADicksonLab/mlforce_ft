@@ -136,6 +136,41 @@ private:
 
 };
   
+class ReferenceCalcPyTorchForceE2EDiffConfKernel : public CalcPyTorchForceE2EDiffConfKernel {
+    public:
+        ReferenceCalcPyTorchForceE2EDiffConfKernel(std::string name, const OpenMM::Platform& platform) : CalcPyTorchForceE2EDiffConfKernel(name, platform) {
+        }
+        ~ReferenceCalcPyTorchForceE2EDiffConfKernel();
+          /**
+         * Initialize the kernel.
+         *
+         * @param system         the System this kernel will be applied to
+         * @param force          the PyTorchForce this kernel will be used for
+         * @param module         the Pytorch model to use for computing forces and energy
+         */
+        void initialize(const OpenMM::System& system, const PyTorchForceE2EDiffConf& force,
+                torch::jit::script::Module& nnModule);
+    
+        /**
+         * Execute the kernel to calculate the forces and/or energy.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param includeForces  true if forces should be calculated
+         * @param includeEnergy  true if the energy should be calculated
+         * @return the potential energy due to the force
+         */
+        double execute(OpenMM::ContextImpl& context, bool includeForces, bool includeEnergy);
+    private:
+      torch::jit::script::Module nnModule;
+      torch::Tensor boxVectorsTensor;
+      std::vector<torch::Tensor> fixedInputs;
+      std::vector<int> particleIndices;
+      std::vector<double> signalForceWeights;
+      double scale;
+      bool usePeriodic;
+      torch::TensorOptions options_float, options_int;
+    
+    };
 } // namespace PyTorchPlugin
 
 #endif /*REFERENCE_NEURAL_NETWORK_KERNELS_H_*/

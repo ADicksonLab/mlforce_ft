@@ -153,23 +153,8 @@ void ReferenceCalcPyTorchForceE2EDirectKernel::initialize(const System& system, 
 double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, bool includeForces, bool includeEnergy) {
 
 
-  // Get the current diffusion time from the context
-  double tim = context.getParameter("diffTime");
-  int tim_idx = int(floor(tim*num_diff_steps));
-  if (tim_idx < 0) {
-	tim_idx = 0;
-  } else if (tim_idx >= num_diff_steps) {
-	tim_idx = num_diff_steps - 1;
-  }
-
-
-
-  torch::Tensor timTensor = torch::empty({1}, options_float);
-  auto tim_acc = timTensor.accessor<float, 1>();
-  tim_acc[0] = tim;
-  
-  double sigfac = sigma[tim_idx]*0.01;
-  
+  double useGlobal = context.getParameter("use_global");
+  torch::Tensor useGlobalTensor = torch::ones({1}, options_float) * useGlobal;
 
   // Get the  positions from the context (previous step)
 	vector<Vec3>& MDPositions = extractPositions(context);
@@ -211,9 +196,10 @@ double ReferenceCalcPyTorchForceE2EDirectKernel::execute(ContextImpl& context, b
 	for ( auto &ten : fixedInputs ) {
 	  nnInputs.push_back(ten);
 	}
+	nnInputs.push_back(useGlobalTensor);
+
 
 	auto get_diffusion_noise = nnModule.get_method("get_diffusion_noise");
-
 
 	//std::cout << "get_diffusion_noise device:" << get_diffusion_noise.device();
 	torch::Tensor noise = scale*get_diffusion_noise(nnInputs).toTensor();

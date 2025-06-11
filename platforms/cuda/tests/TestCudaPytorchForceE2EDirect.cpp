@@ -84,7 +84,7 @@ void testForce() {
   for (int i = 0; i < numParticles; i++) {
 	cnb_force->addParticle(param);
   }
-  cnb_force->addGlobalParameter("diffTime", 0.5);
+  cnb_force->addGlobalParameter("use_global", 1.0);
   
   system.addForce(cnb_force);
 	
@@ -93,7 +93,7 @@ void testForce() {
   VerletIntegrator integ(1.0);
   Platform& platform = Platform::getPlatformByName("CUDA");
   Context context(system, integ, platform);
-  context.setParameter("diffTime",0.5);
+  context.setParameter("use_global",1.0);
   context.setPositions(positions);
   State state = context.getState(State::Energy | State::Forces);
 		

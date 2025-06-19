@@ -5,7 +5,7 @@
 # Collect up information about the version of the OpenMM library we're building
 # and make it available to the code so it can be built into the binaries.
 
-SET(NN_REFERENCE_LIBRARY_NAME OpenMMNNReference)
+SET(NN_REFERENCE_LIBRARY_NAME OpenMMMLForceReference)
 
 SET(SHARED_TARGET ${NN_REFERENCE_LIBRARY_NAME})
 

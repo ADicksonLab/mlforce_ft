@@ -259,14 +259,14 @@ double CudaCalcPyTorchForceE2EDiffConfKernel::execute(ContextImpl& context,bool 
     vector<Vec3> MDPositions;
     context.getPositions(MDPositions);
 
-	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 3}, options_float.requires_grad(true));
+	torch::Tensor positionsTensor = torch::empty({numGhostParticles, 1, 3}, options_float.requires_grad(true));
 
-	auto positions = positionsTensor.accessor<float, 2>();
+	auto positions = positionsTensor.accessor<float, 3>();
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-		positions[i][0] = MDPositions[particleIndices[i]][0] *10;
-		positions[i][1] = MDPositions[particleIndices[i]][1] *10;
-		positions[i][2] = MDPositions[particleIndices[i]][2] *10;
+		positions[i][0][0] = MDPositions[particleIndices[i]][0] *10;
+		positions[i][0][1] = MDPositions[particleIndices[i]][1] *10;
+		positions[i][0][2] = MDPositions[particleIndices[i]][2] *10;
 	}
 
 	vector<torch::jit::IValue> nnInputs = {};

@@ -225,7 +225,7 @@ void testForce() {
 	VerletIntegrator integ(1.0);
 	Platform& platform = Platform::getPlatformByName("CUDA");
 	Context context(system, integ, platform);
-	context.setParameter("diffTime",0.5);
+	context.setParameter("diff_sigma",sigma);
 	context.setPositions(positions);
 	State state = context.getState(State::Energy | State::Forces);
 		

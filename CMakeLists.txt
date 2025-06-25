@@ -64,6 +64,10 @@ foreach(subdir ${NN_PLUGIN_SOURCE_SUBDIRS})
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/${subdir}/include)
 endforeach(subdir)
 
+find_package(TorchScatter QUIET)
+find_package(TorchSparse QUIET)
+find_package(TorchCluster QUIET)
+
 # add the library
 add_library(${SHARED_NN_TARGET} SHARED ${SOURCE_FILES} ${SOURCE_INCLUDE_FILES} ${API_INCLUDE_FILES})
 set_target_properties(${SHARED_NN_TARGET}
@@ -74,6 +78,9 @@ set_target_properties(${SHARED_NN_TARGET}
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 target_link_libraries(${SHARED_NN_TARGET} OpenMM ${TORCH_LIBRARIES})
+target_link_libraries(${SHARED_NN_TARGET} TorchScatter::TorchScatter)
+target_link_libraries(${SHARED_NN_TARGET} TorchSparse::TorchSparse)
+target_link_libraries(${SHARED_NN_TARGET} TorchCluster::TorchCluster)
 
 message(STATUS "OpenMM libraries: ${OpenMM_LIBRARIES}")
 message(STATUS "Torch libraries: ${TORCH_LIBRARIES}")

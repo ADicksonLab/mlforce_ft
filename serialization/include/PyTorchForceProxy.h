@@ -24,6 +24,19 @@ public:
     void* deserialize(const SerializationNode& node) const;
 };
 
+class OPENMM_EXPORT_PYTORCH PyTorchForceE2EDirectProxy : public SerializationProxy {
+public:
+    PyTorchForceE2EDirectProxy();
+    void serialize(const void* object, SerializationNode& node) const;
+    void* deserialize(const SerializationNode& node) const;
+};
+
+class OPENMM_EXPORT_PYTORCH PyTorchForceE2EDiffConfProxy : public SerializationProxy {
+    public:
+        PyTorchForceE2EDiffConfProxy();
+        void serialize(const void* object, SerializationNode& node) const;
+        void* deserialize(const SerializationNode& node) const;
+    };
   
 } // namespace OpenMM
 

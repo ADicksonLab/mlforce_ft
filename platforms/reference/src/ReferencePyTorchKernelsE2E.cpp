@@ -91,7 +91,8 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	offset = force.getOffset();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
-	
+
+	useLambda = force.usesLambda();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
 
@@ -160,14 +161,21 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
 
-	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4},
+	int n_signals;
+	if (useLambda) {
+	  n_signals = 4;
+	} else {
+	  n_signals = 3;
+	}
+	
+	torch::Tensor signalsTensor = torch::empty({numGhostParticles, n_signals},
 												 torch::TensorOptions().requires_grad(true).dtype(torch::kFloat32));
 
 	auto signals = signalsTensor.accessor<float, 2>();
 
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-	  for (int j = 0; j < 4; j++) {
+	  for (int j = 0; j < n_signals; j++) {
 		signals[i][j] = globalVariables[4*i + j];
 	  }
 	}
@@ -210,7 +218,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 			MDForce[particleIndices[i]][1] += NNForce[i][1];
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 
-			for (int j=0; j<4; j++) { 
+			for (int j=0; j<n_signals; j++) { 
 			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
 			}
 			

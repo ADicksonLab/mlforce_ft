@@ -13,14 +13,16 @@ PyTorchForceE2E::PyTorchForceE2E(const std::string& file,
 								 const std::vector<int> particleIndices,
 								 const std::vector<double> signalForceWeights,
 								 const double scale,
-								 const double offset):
+								 const double offset,
+								 const bool useLambda):
 
   file(file),
   particleIndices(particleIndices),
   signalForceWeights(signalForceWeights),
   scale(scale),
   offset(offset),
-  usePeriodic(false)
+  usePeriodic(false),
+  useLambda(useLambda)
   {
 }
 
@@ -52,6 +54,9 @@ bool PyTorchForceE2E::usesPeriodicBoundaryConditions() const {
 	return usePeriodic;
 }
 
+bool PyTorchForceE2E::usesLambda() const {
+	return useLambda;
+}
 
 int PyTorchForceE2E::addGlobalParameter(const string& name, double defaultValue) {
 	globalParameters.push_back(GlobalParameterInfo(name, defaultValue));

@@ -20,6 +20,7 @@ void PyTorchForceE2EProxy::serialize(const void* object, SerializationNode& node
 	node.setDoubleProperty("offset", force.getOffset());
 	node.setIntProperty("forceGroup", force.getForceGroup());
 	node.setBoolProperty("usesPeriodic", force.usesPeriodicBoundaryConditions());
+	node.setBoolProperty("usesLambda", force.usesLambda());
 
 	std::vector<int>  ParticleIndices = force.getParticleIndices();
 	SerializationNode& ParticleIndicesNode = node.createChildNode("ParticleIndices");
@@ -54,7 +55,8 @@ void* PyTorchForceE2EProxy::deserialize(const SerializationNode& node) const {
 												 indices,
 												 signalForceWeights,
 												 node.getDoubleProperty("scale"),
-												 node.getDoubleProperty("offset"));
+												 node.getDoubleProperty("offset"),
+												 node.getBoolProperty("usesLambda"));
 												 
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));

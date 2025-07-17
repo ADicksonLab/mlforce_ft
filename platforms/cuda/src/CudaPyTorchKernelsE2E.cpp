@@ -90,6 +90,8 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
 	signalForceWeights = force.getSignalForceWeights();
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();
+	useLambda = force.usesLambda();
+	
 	int numGhostParticles = particleIndices.size();
 
     if (usePeriodic) {
@@ -184,10 +186,25 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
         }
     }
 
-	torch::Tensor signalsTensor = torch::empty({numGhostParticles, 4}, torch::kFloat64);
+	int n_signals;
+	if (useLambda) {
+	  n_signals = 4;
+	} else {
+	  n_signals = 3;
+	}
+	
+	torch::Tensor signalsTensor = torch::empty({numGhostParticles, n_signals}, torch::kFloat64);
     std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
-    signalsTensor = torch::from_blob(globalVariables.data(),
-        {static_cast<int64_t>(numGhostParticles), 4}, torch::kFloat64);
+
+	auto signals = signalsTensor.accessor<double, 2>();
+
+	//Copy positions to the tensor
+	for (int i = 0; i < numGhostParticles; i++) {
+	  for (int j = 0; j < n_signals; j++) {
+		signals[i][j] = globalVariables[4*i + j];
+	  }
+	}
+
     torch::TensorOptions options = torch::TensorOptions().device(torch::kCPU).dtype(torch::kFloat32);
 
     signalsTensor = signalsTensor.to(options);
@@ -232,7 +249,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 
 		  auto signalDerivData = signalDerivTensor.accessor<double, 2>();
 			for (int i = 0; i < numGhostParticles; i++) {
-				for (int j=0; j<4; j++){
+				for (int j=0; j < n_signals; j++){
 					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 				}
 			}
@@ -246,7 +263,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 
 		  auto signalDerivData = signalDerivTensor.accessor<float, 2>();
 		  for (int i = 0; i < numGhostParticles; i++) {
-			for (int j=0; j<4; j++) {
+			for (int j=0; j < n_signals; j++) {
 			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 			}
 		  }		

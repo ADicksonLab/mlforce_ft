@@ -63,7 +63,8 @@ public:
 					const std::vector<int> particleIndices,
 					const std::vector<double> signalForceWeights,
 					double scale,
-					double offset);
+					double offset,
+					bool useLambda);
 
 	const std::string& getFile() const;
 	const double getScale() const;
@@ -72,6 +73,7 @@ public:
 	const std::vector<double> getSignalForceWeights() const;
 	void setUsesPeriodicBoundaryConditions(bool periodic);
 	bool usesPeriodicBoundaryConditions() const;
+	bool usesLambda() const;
 	int getNumGlobalParameters() const;
 	int addGlobalParameter(const std::string& name, double defaultValue);
 	const std::string& getGlobalParameterName(int index) const;

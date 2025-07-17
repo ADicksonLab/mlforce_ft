@@ -1,5 +1,5 @@
 /**
- * This tests the CUDA implementation of TorchMLForce.
+ * This tests the Reference implementation of PyTorchForce.
  */
 
 #include "PyTorchForce.h"
@@ -18,7 +18,7 @@ using namespace PyTorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
-extern "C" OPENMM_EXPORT void registerPyTorchCudaKernelFactories();
+extern "C" OPENMM_EXPORT void registerPyTorchReferenceKernelFactories();
 
 void testForce() {
 	// Create a random cloud of particles.
@@ -29,8 +29,8 @@ void testForce() {
 	OpenMM_SFMT::SFMT sfmt;
 	init_gen_rand(0, sfmt);
 	for (int i = 0; i < numParticles; i++) {
-		system.addParticle(1.0);
-		positions[i] = Vec3(genrand_real2(sfmt), genrand_real2(sfmt), genrand_real2(sfmt))*10;
+	  system.addParticle(1.0);
+	  positions[i] = Vec3(genrand_real2(sfmt), genrand_real2(sfmt), genrand_real2(sfmt))*10;
 	}
 	std::vector<int> pindices={0, 1, 2};
 	std::vector<double> weights={1,1,1,1};
@@ -51,13 +51,13 @@ void testForce() {
 	}
 	cnb_force->addGlobalParameter("charge_g0", -1.2);
 	cnb_force->addGlobalParameter("charge_g1", 0.5);
-	cnb_force->addGlobalParameter("charge_g2", 0.5);
+	cnb_force->addGlobalParameter("charge_g2", 0.51);
 	cnb_force->addGlobalParameter("sigma_g0", 0.023);
 	cnb_force->addGlobalParameter("sigma_g1", 0.1);
-	cnb_force->addGlobalParameter("sigma_g2", 0.1);
+	cnb_force->addGlobalParameter("sigma_g2", 0.11);
 	cnb_force->addGlobalParameter("epsilon_g0", 0.03);
 	cnb_force->addGlobalParameter("epsilon_g1", 1.5);
-	cnb_force->addGlobalParameter("epsilon_g2", 1.5);
+	cnb_force->addGlobalParameter("epsilon_g2", 1.51);
 	cnb_force->addGlobalParameter("lambda_g0", 1);
 	cnb_force->addGlobalParameter("lambda_g1", 1);
 	cnb_force->addGlobalParameter("lambda_g2", 1);
@@ -67,7 +67,7 @@ void testForce() {
 	// Compute the forces and energy.
 
 	VerletIntegrator integ(1.0);
-	Platform& platform = Platform::getPlatformByName("CUDA");
+	Platform& platform = Platform::getPlatformByName("Reference");
 	Context context(system, integ, platform);
 	context.setPositions(positions);
 	State state = context.getState(State::Energy | State::Forces);
@@ -75,17 +75,14 @@ void testForce() {
 }
 
 
-int main(int argc, char* argv[]) {
+int main() {
 	try {
-		registerPyTorchCudaKernelFactories();
-		if (argc > 1)
-			Platform::getPlatformByName("CUDA").setPropertyDefaultValue("Precision", string(argv[1]));
-		testForce();
-		testForce();
+	registerPyTorchReferenceKernelFactories();
+	testForce();
 	}
 	catch(const std::exception& e) {
-		std::cout << "exception: " << e.what() << std::endl;
-		return 1;
+	std::cout << "exception: " << e.what() << std::endl;
+	return 1;
 	}
 	std::cout << "Done" << std::endl;
 	return 0;

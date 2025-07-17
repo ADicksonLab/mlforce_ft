@@ -107,7 +107,7 @@ void testForce() {
 	vector<vector<int>> cistrans = {};
 
 	// ENCODING (truncated to save space – full version can be inserted similarly)    
-	vector<vector<float>> encoding = {
+	vector<vector<double>> encoding = {
 		{-0.081649, -0.0015378, 0.10050, 0.082201, -0.047480,
 			-0.012450, -0.010027, 0.0048477, -0.016389, 0.020203,
 			-0.032699, 0.022310, 0.049317, -0.11148, -0.029759,

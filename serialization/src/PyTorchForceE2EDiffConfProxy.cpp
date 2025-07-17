@@ -41,7 +41,7 @@ void PyTorchForceE2EDiffConfProxy::serialize(const void* object, SerializationNo
 	std::vector<std::vector<int>> pairs = force.getPairs();
 	std::vector<std::vector<int>> tetras = force.getTetras();
 	std::vector<std::vector<int>> cistrans = force.getCisTrans();
-	std::vector<std::vector<float>> encoding = force.getEncoding();
+	std::vector<std::vector<double>> encoding = force.getEncoding();
 
 	SerializationNode&  atomTypeNode = node.createChildNode("AtomType");
 	for (int i = 0; i < atoms.size(); i++) {
@@ -115,7 +115,7 @@ void PyTorchForceE2EDiffConfProxy::serialize(const void* object, SerializationNo
 	for (int i = 0; i < encoding.size(); i++) {
 		SerializationNode&  indexNode = encodingNode.createChildNode("Indexes");
 		for (int j = 0; j < encoding[0].size(); j++) {
-		  indexNode.createChildNode("Value").setDoubleProperty("value",double(encoding[i][j]));
+		  indexNode.createChildNode("Value").setDoubleProperty("value",encoding[i][j]);
 		}
 	}
 }
@@ -144,7 +144,7 @@ void* PyTorchForceE2EDiffConfProxy::deserialize(const SerializationNode& node) c
 	std::vector<std::vector<int>> pairs;
 	std::vector<std::vector<int>> tetras;
 	std::vector<std::vector<int>> cistrans;
-	std::vector<std::vector<float>> encoding;
+	std::vector<std::vector<double>> encoding;
 	
 	const SerializationNode& atomTypeNode = node.getChildNode("AtomType");
 	for (auto &type: atomTypeNode.getChildren()) {
@@ -223,9 +223,9 @@ void* PyTorchForceE2EDiffConfProxy::deserialize(const SerializationNode& node) c
 
 	const SerializationNode& encodingNode = node.getChildNode("Encoding");
 	for (auto &indexNode: encodingNode.getChildren()) {
-	  	std::vector<float> tmp;
+	  	std::vector<double> tmp;
 		for (auto &valueNode: indexNode.getChildren()) {
-		  tmp.push_back(float(valueNode.getDoubleProperty("value")));
+		  tmp.push_back(valueNode.getDoubleProperty("value"));
 		}
 		encoding.push_back(tmp);
 	}

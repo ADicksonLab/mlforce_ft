@@ -21,7 +21,7 @@ PyTorchForceE2EDiffConf::PyTorchForceE2EDiffConf(const std::string& file,
 											 const std::vector<std::vector<int>> pairs,
 											 const std::vector<std::vector<int>> tetras,
 											 const std::vector<std::vector<int>> cistrans,
-											 const std::vector<std::vector<float>> encoding
+											 const std::vector<std::vector<double>> encoding
 											 ):
 
   file(file),
@@ -71,7 +71,7 @@ const std::vector<std::vector<int>> PyTorchForceE2EDiffConf::getTetras() const {
 const std::vector<std::vector<int>> PyTorchForceE2EDiffConf::getCisTrans() const {
 	return cistrans;
 }
-const std::vector<std::vector<float>> PyTorchForceE2EDiffConf::getEncoding() const {
+const std::vector<std::vector<double>> PyTorchForceE2EDiffConf::getEncoding() const {
 	return encoding;
 }
 

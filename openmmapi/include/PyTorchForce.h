@@ -382,7 +382,7 @@ public:
 							std::vector<std::vector<int>> pairs,
 							std::vector<std::vector<int>> tetras,
 							std::vector<std::vector<int>> cistrans,
-							std::vector<std::vector<float>> encoding);
+							std::vector<std::vector<double>> encoding);
 		/**
 		 * Get the path to the file containing the graph.
 		 */
@@ -398,7 +398,7 @@ public:
 		const std::vector<std::vector<int>> getPairs() const;
 		const std::vector<std::vector<int>> getTetras() const;
 		const std::vector<std::vector<int>> getCisTrans() const;
-		const std::vector<std::vector<float>> getEncoding() const;
+		const std::vector<std::vector<double>> getEncoding() const;
 
 
 		void setUsesPeriodicBoundaryConditions(bool periodic);
@@ -459,7 +459,7 @@ public:
 		double scale;
 		std::vector<int> atoms;
 		std::vector<std::vector<int>> bonds, angles, propers, impropers, pairs, tetras, cistrans;
-		std::vector<std::vector<float>> encoding;
+		std::vector<std::vector<double>> encoding;
 
 		bool usePeriodic;
 		std::vector<GlobalParameterInfo> globalParameters;

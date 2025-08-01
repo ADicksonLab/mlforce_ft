@@ -13,12 +13,13 @@
 #include "openmm/RPMDIntegrator.h"
 #include "openmm/RPMDMonteCarloBarostat.h"
 %}
-namespace std {
-  %template(vectori) vector<int>;
-  %template(vectord) vector<double>;
-  %template(vectordd) vector< vector<double> >;
-  %template(vectorii) vector< vector<int> >;
-  };
+%template(vectori) std::vector<int>;
+%template(vectorii) std::vector<std::vector<int> >;
+%template(vectord) std::vector<double>;
+%template(vectordd) std::vector<std::vector<double> >;
+%template(vectorf) std::vector<float> ;
+%template(vectorff) std::vector<std::vector<float> >;
+
 
 namespace PyTorchPlugin {
 

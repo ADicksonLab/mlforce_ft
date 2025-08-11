@@ -281,6 +281,7 @@ double CudaCalcPyTorchForceE2EDiffConfKernel::execute(ContextImpl& context,bool 
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
 
 	torch::Tensor noise = scale*nnModule.forward(nnInputs).toTensor();
+	noise -= noise.mean(0);
 
 	//std::cout << "tim_idx, sigfac, mean noise:" << tim_idx << " " << sigfac << " " << torch::pow(noise, 2).mean() << "\n";
 	// get forces on positions as before

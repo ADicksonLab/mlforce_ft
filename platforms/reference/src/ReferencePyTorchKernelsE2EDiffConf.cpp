@@ -259,7 +259,7 @@ double ReferenceCalcPyTorchForceE2EDiffConfKernel::execute(ContextImpl& context,
 
 	//std::cout << "get_diffusion_noise device:" << get_diffusion_noise.device();
 	torch::Tensor noise = scale*nnModule.forward(nnInputs).toTensor();
-
+	noise -= noise.mean(0);
 	
 	// get forces on positions as before
 	if (includeForces) {

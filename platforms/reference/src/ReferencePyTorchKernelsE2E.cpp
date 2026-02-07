@@ -93,6 +93,8 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	signalForceWeights = force.getSignalForceWeights();
 
 	useLambda = force.usesLambda();
+	useEdges = force.usesEdges();
+	useTime = force.usesTime();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	int numGhostParticles = particleIndices.size();
 
@@ -180,8 +182,25 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 	  }
 	}
 	
-	// Run the pytorch model and get the energy
-	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+	// Prepare inputs to PyTorch model
+	vector<torch::jit::IValue> nnInputs = {};
+	torch::Tensor tim = torch::zeros({1},torch::TensorOptions().dtype(torch::kFloat32));
+	if (useEdges) {
+		if (useTime) {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch, tim};
+		} else {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+		}
+	} else {
+		if (useTime) {
+			nnInputs = {positionsTensor, signalsTensor, batch, tim};
+		} else {
+			nnInputs = {positionsTensor, signalsTensor, batch};
+		}
+	}
+
+	// debug: input shapes
+	std::cout << nnInputs << "\n";
 
 	// outputTensor : energy
 	torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;

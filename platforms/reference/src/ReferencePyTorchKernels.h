@@ -96,7 +96,7 @@ private:
 	std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
     double scale, offset;
-  bool usePeriodic, useLambda;
+  bool usePeriodic, useLambda, useEdges, useTime;
 };
 
 class ReferenceCalcPyTorchForceE2EDirectKernel : public CalcPyTorchForceE2EDirectKernel {

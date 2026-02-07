@@ -37,8 +37,10 @@ void testForce() {
 	double scale = 3084.0973724679484;
 	double offset = -1421.63869806774;
 	bool useLambda = false;
+	bool useEdges = true;
+	bool useTime = false;
 	
-	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script_e2e_no_lambda.pt", pindices, weights, scale, offset, useLambda);
+	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script_e2e_no_lambda.pt", pindices, weights, scale, offset, useLambda, useEdges, useTime);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");

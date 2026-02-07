@@ -91,6 +91,8 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
 
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	useLambda = force.usesLambda();
+	useEdges = force.usesEdges();
+	useTime = force.usesTime();
 	
 	int numGhostParticles = particleIndices.size();
 
@@ -212,8 +214,22 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
     positionsTensor.requires_grad_(true);
     signalsTensor.requires_grad_(true) ;
 	
-	// Run the pytorch model and get the energy
-	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+	// Prepare inputs to PyTorch model
+	vector<torch::jit::IValue> nnInputs = {};
+	torch::Tensor tim = torch::zeros({1},options);
+	if (useEdges) {
+		if (useTime) {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch, tim};
+		} else {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+		}
+	} else {
+		if (useTime) {
+			nnInputs = {positionsTensor, signalsTensor, batch, tim};
+		} else {
+			nnInputs = {positionsTensor, signalsTensor, batch};
+		}
+	}
 
 	// synchronizing the current context before switching to PyTorch
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");

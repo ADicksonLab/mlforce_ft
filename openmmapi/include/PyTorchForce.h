@@ -162,7 +162,13 @@ public:
 	 * @param file   the path to the file containing the network
 	 */
   PyTorchForceE2E(const std::string& file, 
-				  std::vector<int> particleIndices, std::vector<double> signalForceWeights, double scale, double offset, bool useLambda);
+				  std::vector<int> particleIndices,
+				  std::vector<double> signalForceWeights,
+				  double scale,
+				  double offset,
+				  bool useLambda,
+				  bool useEdges,
+				  bool useTime);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
@@ -178,6 +184,8 @@ public:
 	bool usesPeriodicBoundaryConditions() const;
 
 	bool usesLambda() const;
+	bool usesEdges() const;
+	bool usesTime() const;
 
 	/**
 	 * Get the number of global parameters that the interaction depends on.
@@ -229,7 +237,7 @@ private:
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale, offset;
-	bool usePeriodic, useLambda;
+	bool usePeriodic, useLambda, useEdges, useTime;
 	std::vector<GlobalParameterInfo> globalParameters;
 };
 

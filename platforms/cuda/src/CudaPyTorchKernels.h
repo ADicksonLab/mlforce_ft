@@ -98,7 +98,7 @@ private:
     std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
     double scale, offset;
-  bool usePeriodic, useLambda;
+  bool usePeriodic, useLambda, useEdges, useTime;
 
     CUfunction copyInputsKernel, addForcesKernel;
     CUcontext primaryContext;

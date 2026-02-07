@@ -34,13 +34,13 @@ void testForce() {
 	}
 	std::vector<int> pindices={0, 1, 2};
 	std::vector<double> weights={1,1,1,1};
-	double scale = 3084.0973724679484;
-	double offset = -1421.63869806774;
-	bool useLambda = true;
-	bool useEdges = true;
-	bool useTime = false;
+	double scale = 1.0;
+	double offset = 0.0;
+	bool useLambda = false;
+	bool useEdges = false;
+	bool useTime = true;
 	
-	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script.pt", pindices, weights, scale, offset, useLambda, useEdges, useTime);
+	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script_e2e_attr_diff.pt", pindices, weights, scale, offset, useLambda, useEdges, useTime);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");
@@ -82,7 +82,6 @@ int main(int argc, char* argv[]) {
 		registerPyTorchCudaKernelFactories();
 		if (argc > 1)
 			Platform::getPlatformByName("CUDA").setPropertyDefaultValue("Precision", string(argv[1]));
-		testForce();
 		testForce();
 	}
 	catch(const std::exception& e) {

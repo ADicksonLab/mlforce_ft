@@ -199,11 +199,11 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		}
 	}
 
-	// debug: input shapes
-	std::cout << nnInputs << "\n";
 
 	// outputTensor : energy
-	torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
+	//torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
+
+	torch::Tensor outputTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
 	
 
 	// update the global variables derivatives

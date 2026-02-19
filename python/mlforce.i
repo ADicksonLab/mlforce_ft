@@ -67,7 +67,8 @@ public:
 					double offset,
 					bool useLambda,
 					bool useEdges,
-					bool useTime);
+					bool useTime,
+					bool useAngstroms);
 
 	const std::string& getFile() const;
 	const double getScale() const;
@@ -79,6 +80,7 @@ public:
 	bool usesLambda() const;
 	bool usesEdges() const;
 	bool usesTime() const;
+	bool inAngstroms() const;
 	int getNumGlobalParameters() const;
 	int addGlobalParameter(const std::string& name, double defaultValue);
 	const std::string& getGlobalParameterName(int index) const;

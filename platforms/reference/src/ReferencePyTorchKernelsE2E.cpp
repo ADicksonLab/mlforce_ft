@@ -96,6 +96,13 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	useEdges = force.usesEdges();
 	useTime = force.usesTime();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
+
+	if (force.inAngstroms()) {
+	  conv_fac = 10.0;
+	} else {
+	  conv_fac = 1.0;
+	}
+
 	int numGhostParticles = particleIndices.size();
 
 	if (usePeriodic) {
@@ -156,9 +163,9 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-		positions[i][0] = MDPositions[particleIndices[i]][0];
-		positions[i][1] = MDPositions[particleIndices[i]][1];
-		positions[i][2] = MDPositions[particleIndices[i]][2];
+		positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+		positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+		positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
 	}
 
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);

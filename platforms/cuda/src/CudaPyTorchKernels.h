@@ -97,7 +97,7 @@ private:
     torch::Tensor edge_idxs, edge_attrs, batch;
     std::vector<int> particleIndices;
     std::vector<double> signalForceWeights;
-    double scale, offset;
+  double scale, offset, conv_fac;
   bool usePeriodic, useLambda, useEdges, useTime;
 
     CUfunction copyInputsKernel, addForcesKernel;

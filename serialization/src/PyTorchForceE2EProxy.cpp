@@ -23,6 +23,7 @@ void PyTorchForceE2EProxy::serialize(const void* object, SerializationNode& node
 	node.setBoolProperty("usesLambda", force.usesLambda());
 	node.setBoolProperty("usesEdges", force.usesEdges());
 	node.setBoolProperty("usesTime", force.usesTime());
+	node.setBoolProperty("inAngstroms", force.inAngstroms());
 
 	std::vector<int>  ParticleIndices = force.getParticleIndices();
 	SerializationNode& ParticleIndicesNode = node.createChildNode("ParticleIndices");
@@ -60,7 +61,8 @@ void* PyTorchForceE2EProxy::deserialize(const SerializationNode& node) const {
 												 node.getDoubleProperty("offset"),
 												 node.getBoolProperty("usesLambda"),
 												 node.getBoolProperty("usesEdges"),
-												 node.getBoolProperty("usesTime"));
+												 node.getBoolProperty("usesTime"),
+												 node.getBoolProperty("inAngstroms"));
 												 
 	 if (node.hasProperty("forceGroup"))
 	   force->setForceGroup(node.getIntProperty("forceGroup", 0));

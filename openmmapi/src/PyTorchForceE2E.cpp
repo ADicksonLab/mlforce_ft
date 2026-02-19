@@ -16,7 +16,8 @@ PyTorchForceE2E::PyTorchForceE2E(const std::string& file,
 								 const double offset,
 								 const bool useLambda,
 								 const bool useEdges,
-								 const bool useTime):
+								 const bool useTime,
+								 const bool useAngstroms):
 
   file(file),
   particleIndices(particleIndices),
@@ -26,7 +27,8 @@ PyTorchForceE2E::PyTorchForceE2E(const std::string& file,
   usePeriodic(false),
   useLambda(useLambda),
   useEdges(useEdges),
-  useTime(useTime)
+  useTime(useTime),
+  useAngstroms(useAngstroms)
   {
 }
 
@@ -68,6 +70,10 @@ bool PyTorchForceE2E::usesEdges() const {
 
 bool PyTorchForceE2E::usesTime() const {
 	return useTime;
+}
+
+bool PyTorchForceE2E::inAngstroms() const {
+	return useAngstroms;
 }
 
 int PyTorchForceE2E::addGlobalParameter(const string& name, double defaultValue) {

@@ -168,7 +168,8 @@ public:
 				  double offset,
 				  bool useLambda,
 				  bool useEdges,
-				  bool useTime);
+				  bool useTime,
+				  bool useAngstroms);
 	/**
 	 * Get the path to the file containing the graph.
 	 */
@@ -186,6 +187,7 @@ public:
 	bool usesLambda() const;
 	bool usesEdges() const;
 	bool usesTime() const;
+	bool inAngstroms() const;
 
 	/**
 	 * Get the number of global parameters that the interaction depends on.
@@ -237,7 +239,7 @@ private:
 	std::vector<int> particleIndices;
 	std::vector<double> signalForceWeights;
 	double scale, offset;
-	bool usePeriodic, useLambda, useEdges, useTime;
+	bool usePeriodic, useLambda, useEdges, useTime, useAngstroms;
 	std::vector<GlobalParameterInfo> globalParameters;
 };
 

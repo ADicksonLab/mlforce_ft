@@ -88,11 +88,17 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
 	offset = force.getOffset();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
-
+	
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	useLambda = force.usesLambda();
 	useEdges = force.usesEdges();
 	useTime = force.usesTime();
+
+	if (force.inAngstroms()) {
+	  conv_fac = 10.0;
+	} else {
+	  conv_fac = 1.0;
+	}
 	
 	int numGhostParticles = particleIndices.size();
 
@@ -174,17 +180,17 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
     if (cu.getUseDoublePrecision()) {
         auto positions = positionsTensor.accessor<double, 2>();
         for (int i = 0; i < numGhostParticles; i++) {
-            positions[i][0] = MDPositions[particleIndices[i]][0];
-            positions[i][1] = MDPositions[particleIndices[i]][1];
-            positions[i][2] = MDPositions[particleIndices[i]][2];
+            positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+            positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+            positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
         }
     }
     else {
         auto positions = positionsTensor.accessor<float, 2>();
         for (int i = 0; i < numGhostParticles; i++) {
-            positions[i][0] = MDPositions[particleIndices[i]][0];
-            positions[i][1] = MDPositions[particleIndices[i]][1];
-            positions[i][2] = MDPositions[particleIndices[i]][2];
+            positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+            positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+            positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
         }
     }
 

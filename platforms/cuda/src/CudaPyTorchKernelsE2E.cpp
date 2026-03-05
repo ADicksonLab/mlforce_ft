@@ -241,7 +241,10 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
 
     // outputTensor : energy
-    torch::Tensor energyTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
+	auto forward_scale = nnModule.get_method("forward_scale");
+
+	torch::Tensor energyTensor = (scale*forward_scale(nnInputs).toTensor() + offset).sum();
+    //torch::Tensor energyTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
 
 	// get forces on positions as before
 	if (includeForces) {

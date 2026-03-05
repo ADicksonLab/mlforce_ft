@@ -208,10 +208,10 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 
 	// outputTensor : energy
-	//torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
+	//torch::Tensor outputTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
+	auto forward_scale = nnModule.get_method("forward_scale");
 
-	torch::Tensor outputTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
-	
+	torch::Tensor outputTensor = (scale*forward_scale(nnInputs).toTensor() + offset).sum();	
 
 	// update the global variables derivatives
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);

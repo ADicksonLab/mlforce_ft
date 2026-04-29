@@ -34,11 +34,14 @@ void testForce() {
 	}
 	std::vector<int> pindices={0, 1, 2};
 	std::vector<double> weights={1,1,1,1};
-	double scale = 3084.0973724679484;
-	double offset = -1421.63869806774;
+	double scale = 1.0;
+	double offset = 0.0;
 	bool useLambda = false;
+	bool useEdges = false;
+	bool useTime = true;
+	bool useAngstroms = true;
 	
-	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script_e2e_no_lambda.pt", pindices, weights, scale, offset, useLambda);
+	PyTorchForceE2E* force = new PyTorchForceE2E("tests/test_script_e2e_attr_diff.pt", pindices, weights, scale, offset, useLambda, useEdges, useTime, useAngstroms);
 	system.addForce(force);
 
 	CustomNonbondedForce* cnb_force = new CustomNonbondedForce("epsilon*(sigma/r)^12;sigma=0.5*(sigma1+sigma2);epsilon=sqrt(epsilon1*epsilon2)");

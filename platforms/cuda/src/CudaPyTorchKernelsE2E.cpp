@@ -10,6 +10,8 @@ using namespace PyTorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
+static const std::vector<std::string> PARAMETERNAMES_E2E = {
+    "charge_g", "epsilon_g", "sigma_g", "lambda_g"};
 
 /**
  * @brief
@@ -26,8 +28,8 @@ static std::vector<double> extractContextVariables(ContextImpl& context, int num
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
-		for (std::size_t j=0; j < PARAMETERNAMES.size(); j++) {
-			signals.push_back(context.getParameter(PARAMETERNAMES[j]+std::to_string(i)));
+		for (std::size_t j=0; j < PARAMETERNAMES_E2E.size(); j++) {
+			signals.push_back(context.getParameter(PARAMETERNAMES_E2E[j]+std::to_string(i)));
 		}
 	}
 	return signals;
@@ -88,9 +90,17 @@ void CudaCalcPyTorchForceE2EKernel::initialize(const System& system, const PyTor
 	offset = force.getOffset();
 	particleIndices = force.getParticleIndices();
 	signalForceWeights = force.getSignalForceWeights();
-
+	
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 	useLambda = force.usesLambda();
+	useEdges = force.usesEdges();
+	useTime = force.usesTime();
+
+	if (force.inAngstroms()) {
+	  conv_fac = 10.0;
+	} else {
+	  conv_fac = 1.0;
+	}
 	
 	int numGhostParticles = particleIndices.size();
 
@@ -172,17 +182,17 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
     if (cu.getUseDoublePrecision()) {
         auto positions = positionsTensor.accessor<double, 2>();
         for (int i = 0; i < numGhostParticles; i++) {
-            positions[i][0] = MDPositions[particleIndices[i]][0];
-            positions[i][1] = MDPositions[particleIndices[i]][1];
-            positions[i][2] = MDPositions[particleIndices[i]][2];
+            positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+            positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+            positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
         }
     }
     else {
         auto positions = positionsTensor.accessor<float, 2>();
         for (int i = 0; i < numGhostParticles; i++) {
-            positions[i][0] = MDPositions[particleIndices[i]][0];
-            positions[i][1] = MDPositions[particleIndices[i]][1];
-            positions[i][2] = MDPositions[particleIndices[i]][2];
+            positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+            positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+            positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
         }
     }
 
@@ -212,14 +222,31 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
     positionsTensor.requires_grad_(true);
     signalsTensor.requires_grad_(true) ;
 	
-	// Run the pytorch model and get the energy
-	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+	// Prepare inputs to PyTorch model
+	vector<torch::jit::IValue> nnInputs = {};
+	torch::Tensor tim = torch::zeros({1},options);
+	if (useEdges) {
+		if (useTime) {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch, tim};
+		} else {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+		}
+	} else {
+		if (useTime) {
+			nnInputs = {positionsTensor, signalsTensor, batch, tim};
+		} else {
+			nnInputs = {positionsTensor, signalsTensor, batch};
+		}
+	}
 
 	// synchronizing the current context before switching to PyTorch
 	CHECK_RESULT(cuCtxSynchronize(), "Error synchronizing CUDA context");
 
     // outputTensor : energy
-    torch::Tensor energyTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
+	auto forward_scale = nnModule.get_method("forward_scale");
+
+	torch::Tensor energyTensor = (scale*forward_scale(nnInputs).toTensor() + offset).sum();
+    //torch::Tensor energyTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
 
 	// get forces on positions as before
 	if (includeForces) {
@@ -250,7 +277,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		  auto signalDerivData = signalDerivTensor.accessor<double, 2>();
 			for (int i = 0; i < numGhostParticles; i++) {
 				for (int j=0; j < n_signals; j++){
-					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
+					energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 				}
 			}
 
@@ -264,7 +291,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		  auto signalDerivData = signalDerivTensor.accessor<float, 2>();
 		  for (int i = 0; i < numGhostParticles; i++) {
 			for (int j=0; j < n_signals; j++) {
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
+			  energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 			}
 		  }		
 		}
@@ -290,6 +317,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		}
 	}
 	const double energy = energyTensor.item<double>(); // This implicitly synchronizes the PyTorch context
+
     // Pop to the PyTorch context
     CUcontext ctx;
     CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");

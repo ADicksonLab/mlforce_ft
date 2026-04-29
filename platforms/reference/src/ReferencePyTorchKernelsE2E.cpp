@@ -8,6 +8,9 @@ using namespace PyTorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
+static const std::vector<std::string> PARAMETERNAMES_E2E = {
+    "charge_g", "epsilon_g", "sigma_g", "lambda_g"};
+
 /**
  * @brief
  *
@@ -63,8 +66,8 @@ static std::vector<double> extractContextVariables(ContextImpl& context, int num
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
-		for (std::size_t j=0; j < PARAMETERNAMES.size(); j++) {
-			signals.push_back(context.getParameter(PARAMETERNAMES[j]+std::to_string(i)));
+		for (std::size_t j=0; j < PARAMETERNAMES_E2E.size(); j++) {
+			signals.push_back(context.getParameter(PARAMETERNAMES_E2E[j]+std::to_string(i)));
 		}
 	}
 	return signals;
@@ -245,7 +248,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 
 			for (int j=0; j<n_signals; j++) { 
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
+			  energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
 			}
 			
 		}

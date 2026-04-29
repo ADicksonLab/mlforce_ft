@@ -10,6 +10,8 @@ using namespace PyTorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
+static const std::vector<std::string> PARAMETERNAMES_E2E = {
+    "charge_g", "epsilon_g", "sigma_g", "lambda_g"};
 
 /**
  * @brief
@@ -26,8 +28,8 @@ static std::vector<double> extractContextVariables(ContextImpl& context, int num
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
-		for (std::size_t j=0; j < PARAMETERNAMES.size(); j++) {
-			signals.push_back(context.getParameter(PARAMETERNAMES[j]+std::to_string(i)));
+		for (std::size_t j=0; j < PARAMETERNAMES_E2E.size(); j++) {
+			signals.push_back(context.getParameter(PARAMETERNAMES_E2E[j]+std::to_string(i)));
 		}
 	}
 	return signals;
@@ -275,7 +277,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		  auto signalDerivData = signalDerivTensor.accessor<double, 2>();
 			for (int i = 0; i < numGhostParticles; i++) {
 				for (int j=0; j < n_signals; j++){
-					energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
+					energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 				}
 			}
 
@@ -289,7 +291,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		  auto signalDerivData = signalDerivTensor.accessor<float, 2>();
 		  for (int i = 0; i < numGhostParticles; i++) {
 			for (int j=0; j < n_signals; j++) {
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
+			  energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += signalDerivData[i][j]*signalForceWeights[j];
 			}
 		  }		
 		}
@@ -315,6 +317,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 		}
 	}
 	const double energy = energyTensor.item<double>(); // This implicitly synchronizes the PyTorch context
+
     // Pop to the PyTorch context
     CUcontext ctx;
     CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");

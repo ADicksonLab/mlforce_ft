@@ -8,6 +8,9 @@ using namespace PyTorchPlugin;
 using namespace OpenMM;
 using namespace std;
 
+static const std::vector<std::string> PARAMETERNAMES_E2E = {
+    "charge_g", "epsilon_g", "sigma_g", "lambda_g"};
+
 /**
  * @brief
  *
@@ -63,8 +66,8 @@ static std::vector<double> extractContextVariables(ContextImpl& context, int num
 	std::vector<double> signals;
 	string name;
 	for (int i=0; i < numParticles; i++) {
-		for (std::size_t j=0; j < PARAMETERNAMES.size(); j++) {
-			signals.push_back(context.getParameter(PARAMETERNAMES[j]+std::to_string(i)));
+		for (std::size_t j=0; j < PARAMETERNAMES_E2E.size(); j++) {
+			signals.push_back(context.getParameter(PARAMETERNAMES_E2E[j]+std::to_string(i)));
 		}
 	}
 	return signals;
@@ -93,7 +96,16 @@ void ReferenceCalcPyTorchForceE2EKernel::initialize(const System& system, const 
 	signalForceWeights = force.getSignalForceWeights();
 
 	useLambda = force.usesLambda();
+	useEdges = force.usesEdges();
+	useTime = force.usesTime();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
+
+	if (force.inAngstroms()) {
+	  conv_fac = 10.0;
+	} else {
+	  conv_fac = 1.0;
+	}
+
 	int numGhostParticles = particleIndices.size();
 
 	if (usePeriodic) {
@@ -154,9 +166,9 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 
 	//Copy positions to the tensor
 	for (int i = 0; i < numGhostParticles; i++) {
-		positions[i][0] = MDPositions[particleIndices[i]][0];
-		positions[i][1] = MDPositions[particleIndices[i]][1];
-		positions[i][2] = MDPositions[particleIndices[i]][2];
+		positions[i][0] = MDPositions[particleIndices[i]][0]*conv_fac;
+		positions[i][1] = MDPositions[particleIndices[i]][1]*conv_fac;
+		positions[i][2] = MDPositions[particleIndices[i]][2]*conv_fac;
 	}
 
 	std::vector<double> globalVariables = extractContextVariables(context, numGhostParticles);
@@ -180,12 +192,29 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 	  }
 	}
 	
-	// Run the pytorch model and get the energy
-	vector<torch::jit::IValue> nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+	// Prepare inputs to PyTorch model
+	vector<torch::jit::IValue> nnInputs = {};
+	torch::Tensor tim = torch::zeros({1},torch::TensorOptions().dtype(torch::kFloat32));
+	if (useEdges) {
+		if (useTime) {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch, tim};
+		} else {
+			nnInputs = {signalsTensor, positionsTensor, edge_idxs, edge_attrs, batch};
+		}
+	} else {
+		if (useTime) {
+			nnInputs = {positionsTensor, signalsTensor, batch, tim};
+		} else {
+			nnInputs = {positionsTensor, signalsTensor, batch};
+		}
+	}
+
 
 	// outputTensor : energy
-	torch::Tensor outputTensor = scale*nnModule.forward(nnInputs).toTensor() + offset;
-	
+	//torch::Tensor outputTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
+	auto forward_scale = nnModule.get_method("forward_scale");
+
+	torch::Tensor outputTensor = (scale*forward_scale(nnInputs).toTensor() + offset).sum();	
 
 	// update the global variables derivatives
 	map<string, double>& energyParamDerivs = extractEnergyParameterDerivatives(context);
@@ -219,7 +248,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 			MDForce[particleIndices[i]][2] += NNForce[i][2];
 
 			for (int j=0; j<n_signals; j++) { 
-			  energyParamDerivs[PARAMETERNAMES[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
+			  energyParamDerivs[PARAMETERNAMES_E2E[j]+std::to_string(i)] += NNSignalDeriv[i][j]*signalForceWeights[j];
 			}
 			
 		}

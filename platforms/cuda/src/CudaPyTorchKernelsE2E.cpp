@@ -5,6 +5,7 @@
 #include <map>
 #include <cuda_runtime_api.h>
 #include <fstream>
+#include <iomanip>
 
 using namespace PyTorchPlugin;
 using namespace OpenMM;
@@ -245,6 +246,27 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
     // outputTensor : energy
 	auto forward_scale = nnModule.get_method("forward_scale");
 
+	// std::cout << "###########################" << std::endl;
+	// std::cout << std::fixed << std::setprecision(8);
+	// std::cout << "positionsTensor:" << std::endl;
+	// {
+	// 	auto acc = positionsTensor.accessor<float, 2>();
+	// 	for (int i = 0; i < acc.size(0); i++) {
+	// 		for (int j = 0; j < acc.size(1); j++)
+	// 			std::cout << "  " << acc[i][j];
+	// 		std::cout << std::endl;
+	// 	}
+	// }
+	// std::cout << "signalsTensor:" << std::endl;
+	// {
+	// 	auto acc = signalsTensor.accessor<float, 2>();
+	// 	for (int i = 0; i < acc.size(0); i++) {
+	// 		for (int j = 0; j < acc.size(1); j++)
+	// 			std::cout << "  " << acc[i][j];
+	// 		std::cout << std::endl;
+	// 	}
+	// }
+
 	torch::Tensor energyTensor = (scale*forward_scale(nnInputs).toTensor() + offset).sum();
     //torch::Tensor energyTensor = (scale*nnModule.forward(nnInputs).toTensor() + offset).sum();
 
@@ -258,8 +280,17 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 
 		/*The .clone() function is used to create a new tensor with the same values as positionsTensor.grad() 
 		to ensure that it is not affected by subsequent operations.*/
-		forceTensor = - positionsTensor.grad().clone(); 
+
+		
+		// std::cout << "conv_fac: " << conv_fac << std::endl;
+		forceTensor = - positionsTensor.grad().clone() * conv_fac; 
 		signalDerivTensor = signalsTensor.grad().clone(); 
+
+		// std::cout << "positionsTensor: " << positionsTensor << std::endl;
+		// std::cout << "signalsTensor: " << signalsTensor << std::endl;
+
+		// std::cout << "forceTensor: " << forceTensor << std::endl;
+		// std::cout << "signalDerivTensor: " << signalDerivTensor << std::endl;
 
 		positionsTensor.grad().zero_(); // clear the gradients before the next round of backpropagation or gradient computation.
 		signalsTensor.grad().zero_();
@@ -318,6 +349,7 @@ double CudaCalcPyTorchForceE2EKernel::execute(ContextImpl& context,bool includeF
 	}
 	const double energy = energyTensor.item<double>(); // This implicitly synchronizes the PyTorch context
 
+	// std::cout << "total energy: " << energy << std::endl; 
     // Pop to the PyTorch context
     CUcontext ctx;
     CHECK_RESULT(cuCtxPopCurrent(&ctx), "Failed to pop the CUDA context");

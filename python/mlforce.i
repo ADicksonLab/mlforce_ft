@@ -132,7 +132,7 @@ class PyTorchForceE2EDiffConf : public OpenMM::Force {
 							  const std::vector<std::vector<int>> pairs,
 							  const std::vector<std::vector<int>> tetras,
 							  const std::vector<std::vector<int>> cistrans,
-							  const std::vector<std::vector<double>> encoding
+							  const std::vector<std::vector<float>> encoding
 							);
 	
 		const std::string& getFile() const;
@@ -145,7 +145,7 @@ class PyTorchForceE2EDiffConf : public OpenMM::Force {
 		const std::vector<std::vector<int>> getPairs() const;
 		const std::vector<std::vector<int>> getTetras() const;
 		const std::vector<std::vector<int>> getCisTrans() const;
-		const std::vector<std::vector<double>> getEncoding() const;
+		const std::vector<std::vector<float>> getEncoding() const;
 		
 		const std::vector<int> getParticleIndices() const;
 		const std::vector<double> getSignalForceWeights() const;

@@ -227,7 +227,7 @@ double ReferenceCalcPyTorchForceE2EKernel::execute(ContextImpl& context, bool in
 		auto forceTensor = torch::zeros_like(positionsTensor);
 		auto signalDerivTensor = torch::zeros_like(signalsTensor);
 
-		forceTensor = - positionsTensor.grad().clone().detach();
+		forceTensor = - positionsTensor.grad().clone().detach() * conv_fac;
 		signalDerivTensor = signalsTensor.grad().clone().detach();
 
 		positionsTensor.grad().zero_();

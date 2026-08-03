@@ -182,7 +182,7 @@ void ReferenceCalcPyTorchForceE2EDiffConfKernel::initialize(const System& system
 	vector<vector<int>> tmpPairs = force.getPairs();
 	vector<vector<int>> tmpTetras = force.getTetras();
 	vector<vector<int>> tmpCisTrans = force.getCisTrans();
-	vector<vector<double>> tmpEncoding = force.getEncoding();
+	vector<vector<float>> tmpEncoding = force.getEncoding();
 	usePeriodic = force.usesPeriodicBoundaryConditions();
 
 		
@@ -286,7 +286,7 @@ void ReferenceCalcPyTorchForceE2EDiffConfKernel::initialize(const System& system
 	// encoding
 	for (int i = 0; i < tmpEncoding.size(); i++) {
 		for (int j = 0; j < tmpEncoding[i].size(); j++) {
-		  enc_acc[i][j] = float(tmpEncoding[i][j]);
+		  enc_acc[i][j] = tmpEncoding[i][j];
 		}
 	}
 
